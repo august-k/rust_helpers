@@ -1,4 +1,7 @@
+mod sc2_unit;
+
 use pyo3::prelude::*;
+use crate::sc2_unit::SC2Unit;
 
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -21,16 +24,16 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return neighbors;
     }
 
-    #[pyfn(m, "index_of_closest")]
-    fn index_of_closest(
+    #[pyfn(m, "closest_unit_index_to")]
+    fn closest_unit_index_to(
         _py: Python,
-        unit_positions: Vec<(f32, f32)>,
+        units: Vec<SC2Unit>,
         target_position: (f32, f32)
     ) -> usize {
         let mut closest_index: usize = 0;
         let mut closest_distance: f32 = 9999.9;
-        for i in 0..unit_positions.len() {
-            let dist: f32 = get_squared_distance(unit_positions[i], target_position);
+        for i in 0..units.len() {
+            let dist: f32 = get_squared_distance(units[i].position, target_position);
             if dist < closest_distance {
                 closest_index = i;
                 closest_distance = dist;
@@ -38,7 +41,6 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         return closest_index;
     }
-
 
     fn get_squared_distance(p1: (f32, f32), p2: (f32, f32)) -> f32 {
         return f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0)
