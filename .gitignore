@@ -1,0 +1,8 @@
+*.pyc
+.idea
+target
+.vscode
+*.pyd
+src/map_analyzer
+venv/
+*.so
