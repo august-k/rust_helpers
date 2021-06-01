@@ -4,7 +4,7 @@ use pyo3::types::PyAny;
 #[derive(Clone, Debug)]
 pub struct SC2Unit {
     pub position: (f32, f32),
-    pub tag: i32,
+    pub tag: u64,
 }
 
 impl<'source> FromPyObject<'source> for SC2Unit {
