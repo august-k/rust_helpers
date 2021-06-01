@@ -1,7 +1,7 @@
 mod sc2_unit;
 
-use pyo3::prelude::*;
 use crate::sc2_unit::SC2Unit;
+use pyo3::prelude::*;
 
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -28,7 +28,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     fn closest_unit_index_to(
         _py: Python,
         units: Vec<SC2Unit>,
-        target_position: (f32, f32)
+        target_position: (f32, f32),
     ) -> usize {
         let mut closest_index: usize = 0;
         let mut closest_distance: f32 = 9999.9;
@@ -46,7 +46,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     fn closest_position_index_to(
         _py: Python,
         positions: Vec<(f32, f32)>,
-        target_position: (f32, f32)
+        target_position: (f32, f32),
     ) -> usize {
         let mut closest_index: usize = 0;
         let mut closest_distance: f32 = 9999.9;
@@ -60,8 +60,25 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return closest_index;
     }
 
+    fn cdist(xa: Vec<(f32, f32)>, xb: Vec<(f32, f32)>) -> Vec<Vec<f32>> {
+        // Form a matrix containing the pairwise distances between the points in the input matrices
+        let mut output_array = Vec::new();
+        for i in 0..xa.len() {
+            let mut curr_row = Vec::new();
+            for j in 0..xb.len() {
+                curr_row.push(euclidean_distance(xa[i], xb[j]));
+            }
+            output_array.push(curr_row);
+        }
+        return output_array;
+    }
+
     fn get_squared_distance(p1: (f32, f32), p2: (f32, f32)) -> f32 {
-        return f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0)
+        return f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0);
+    }
+
+    fn euclidean_distance(p1: (f32, f32), p2: (f32, f32)) -> f32 {
+        return get_squared_distance(p1, p2).sqrt();
     }
 
     Ok(())
