@@ -42,6 +42,24 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return closest_index;
     }
 
+    #[pyfn(m, "closest_position_index_to")]
+    fn closest_position_index_to(
+        _py: Python,
+        positions: Vec<(f32, f32)>,
+        target_position: (f32, f32)
+    ) -> usize {
+        let mut closest_index: usize = 0;
+        let mut closest_distance: f32 = 9999.9;
+        for i in 0..positions.len() {
+            let dist: f32 = get_squared_distance(positions[i], target_position);
+            if dist < closest_distance {
+                closest_index = i;
+                closest_distance = dist;
+            }
+        }
+        return closest_index;
+    }
+
     fn get_squared_distance(p1: (f32, f32), p2: (f32, f32)) -> f32 {
         return f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0)
     }
