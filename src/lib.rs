@@ -113,6 +113,56 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return (max_units_found, center_position.to_vec());
     }
 
+    #[pyfn(m, "surround_complete")]
+    fn surround_complete(
+        _py: Python,
+        units: Vec<SC2Unit>,
+        our_center: Vec<f32>,
+        enemy_center: Vec<f32>,
+    ) -> bool {
+        // Determine whether we have enough of our surrounding units
+        // on either side of the target enemy. This is done by drawing a line through
+        // the enemy center tangent to the line segment connecting our center and their
+        // center and then seeing the spread of our units on either side of the line.
+
+        // start getting the angle by "moving" the enemy to the origin
+        let our_adjusted_position = vec![
+            our_center[0] - enemy_center[0],
+            our_center[1] - enemy_center[1],
+        ];
+
+        // our angle is now just atan2
+        let angle_to_origin = our_adjusted_position[1].atan2(our_adjusted_position[0]);
+
+        // We need sine and cosine for the inequality
+        let sincos = angle_to_origin.sin_cos();
+
+        // Check which side of the line our units are on. Positive and negative don't actually matter,
+        // we just need to be consistent. This may be harder to visualize, but it led to fewer
+        // headaches
+        let mut side_one: f32 = 0.0;
+        let mut side_two: f32 = 0.0;
+
+        for unit in units.iter() {
+            if get_squared_distance(unit.position, (enemy_center[0], enemy_center[1])) >= 300.0 {
+                continue;
+            }
+            let y = sincos.0 * (unit.position.1 - enemy_center[1]);
+            let x = sincos.1 * -(unit.position.0 - enemy_center[0]);
+            if y >= x {
+                side_one += 1.0;
+            } else {
+                side_two += 1.0;
+            }
+        }
+        if side_one == 0.0 || side_two == 0.0 {
+            return false;
+        } else if 0.5 <= side_one / side_two && side_one / side_two <= 2.0 {
+            return true;
+        }
+        return false;
+    }
+
     fn reference_cdist(xa: &Vec<Vec<f32>>, xb: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         // Form a matrix containing the pairwise distances between the points given
         // This is for calling internally, Pythont functions should use "cdist"
