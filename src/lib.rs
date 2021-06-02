@@ -119,11 +119,12 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         units: Vec<SC2Unit>,
         our_center: Vec<f32>,
         enemy_center: Vec<f32>,
+        offset: f32,
     ) -> bool {
         /*
         Determine whether we have enough of our surrounding units
         on either side of the target enemy. This is done by drawing a line through
-        the enemy center perpendicular to the line segment connecting our center and their
+        the potentially offset enemy center perpendicular to the line segment connecting our center and their
         center and then seeing the spread of our units on either side of the line.
 
         The slope of a line tangent to a circle is -x/y (as calculated by the derivative of
@@ -133,10 +134,14 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         vectors (1, 0) and (x1, y1), x1 and y1 can be expressed as r * cos(theta) and r * sin(theta),
         respectively. Therefore the slope of the line is -cos(theta) / sin(theta).
 
-        Since we want the line to go through the enemy center, we can write the equation of the line
-        in point slope form as
+        If the offset is 0, the line will go through the enemy center. Otherwise the line will undergo
+        a translation of `offset` in the direction away from our units. This point is then used for
+        the inequality based on the upcoming equation.
+
+        We can write the equation of the line in point slope form as:
         y - enemy_y = -cos(theta) / sin(theta) * (x - enemy_x)
-        To avoid potentially dividing by zero, this can be written as
+
+        To avoid potentially dividing by zero, this can be written as:
         sin(theta) * (y - enemy_y) = -cos(theta) * (x - enemy_x)
         
         While this is worse for drawing a line, we don't actually care about the line- we just want
@@ -167,12 +172,17 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut side_one: f32 = 0.0;
         let mut side_two: f32 = 0.0;
 
+        // Adjust the angle so that it's pointing away from our units and apply the offset
+        let adjusted_angle: f32 = angle_to_origin + std::f32::consts::PI;
+        let enemy_x: f32 = enemy_center[0] + offset * adjusted_angle.cos();
+        let enemy_y: f32 = enemy_center[1] + offset * adjusted_angle.sin();
+
         for unit in units.iter() {
-            if get_squared_distance(unit.position, (enemy_center[0], enemy_center[1])) >= 300.0 {
+            if get_squared_distance(unit.position, (enemy_x, enemy_y)) >= 300.0 {
                 continue;
             }
-            let y = sincos.0 * (unit.position.1 - enemy_center[1]);
-            let x = sincos.1 * -(unit.position.0 - enemy_center[0]);
+            let y = sincos.0 * (unit.position.1 - enemy_y);
+            let x = sincos.1 * -(unit.position.0 - enemy_x);
             if y >= x {
                 side_one += 1.0;
             } else {
