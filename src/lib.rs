@@ -120,18 +120,42 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         our_center: Vec<f32>,
         enemy_center: Vec<f32>,
     ) -> bool {
-        // Determine whether we have enough of our surrounding units
-        // on either side of the target enemy. This is done by drawing a line through
-        // the enemy center tangent to the line segment connecting our center and their
-        // center and then seeing the spread of our units on either side of the line.
+        /*
+        Determine whether we have enough of our surrounding units
+        on either side of the target enemy. This is done by drawing a line through
+        the enemy center perpendicular to the line segment connecting our center and their
+        center and then seeing the spread of our units on either side of the line.
 
-        // start getting the angle by "moving" the enemy to the origin
+        The slope of a line tangent to a circle is -x/y (as calculated by the derivative of
+        x**2 + y**2 = R**2). Thefore the tangent line's slope at (x1, y1) is -x1/y1.
+
+        If r is the distance from the origin to (x1, y1) and theta is the angle between the
+        vectors (1, 0) and (x1, y1), x1 and y1 can be expressed as r * cos(theta) and r * sin(theta),
+        respectively. Therefore the slope of the line is -cos(theta) / sin(theta).
+
+        Since we want the line to go through the enemy center, we can write the equation of the line
+        in point slope form as
+        y - enemy_y = -cos(theta) / sin(theta) * (x - enemy_x)
+        To avoid potentially dividing by zero, this can be written as
+        sin(theta) * (y - enemy_y) = -cos(theta) * (x - enemy_x)
+        
+        While this is worse for drawing a line, we don't actually care about the line- we just want
+        to separate units based on it. If the two sides of the equation are equal, the point is on the line,
+        otherwise it's on one of the sides of the line. Since which side doesn't matter (the only relevant
+        information is how many units are on either side), we can divide units into two categories by
+        plugging in their position into the final equation and comparing the two sides.
+
+        This gives us the split of units and we determine surround status based on the ratio of units
+        on either side.
+        */
+        
+        // start getting the angle by applying a translation that moves the enemy to the origin
         let our_adjusted_position: Vec<f32> = vec![
             our_center[0] - enemy_center[0],
             our_center[1] - enemy_center[1],
         ];
 
-        // our angle is now just atan2
+        // use atan2 to get the angle
         let angle_to_origin: f32 = our_adjusted_position[1].atan2(our_adjusted_position[0]);
 
         // We need sine and cosine for the inequality
@@ -165,7 +189,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn reference_cdist(xa: &Vec<Vec<f32>>, xb: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         // Form a matrix containing the pairwise distances between the points given
-        // This is for calling internally, Pythont functions should use "cdist"
+        // This is for calling internally, Python functions should use "cdist"
         // For Rust purposes, it makes more sense to have the input vectors be references
         // but I'm not sure how that works with pyo3, so there's a Python version
         let mut output_array = Vec::new();
