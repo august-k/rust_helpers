@@ -99,7 +99,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // get the distance of each unit to each unit
         let distances = reference_cdist(&positions, &positions);
         for i in 0..distances.len() {
-            let mut units_found = 0;
+            let mut units_found: isize = 0;
             for j in 0..distances[i].len() {
                 if distances[i][j] < distance {
                     units_found += 1;
@@ -119,23 +119,52 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         units: Vec<SC2Unit>,
         our_center: Vec<f32>,
         enemy_center: Vec<f32>,
+        offset: f32,
     ) -> bool {
-        // Determine whether we have enough of our surrounding units
-        // on either side of the target enemy. This is done by drawing a line through
-        // the enemy center tangent to the line segment connecting our center and their
-        // center and then seeing the spread of our units on either side of the line.
+        /*
+        Determine whether we have enough of our surrounding units
+        on either side of the target enemy. This is done by drawing a line through
+        the potentially offset enemy center perpendicular to the line segment connecting our center and their
+        center and then seeing the spread of our units on either side of the line.
 
-        // start getting the angle by "moving" the enemy to the origin
-        let our_adjusted_position = vec![
+        The slope of a line tangent to a circle is -x/y (as calculated by the derivative of
+        x**2 + y**2 = R**2). Thefore the tangent line's slope at (x1, y1) is -x1/y1.
+
+        If r is the distance from the origin to (x1, y1) and theta is the angle between the
+        vectors (1, 0) and (x1, y1), x1 and y1 can be expressed as r * cos(theta) and r * sin(theta),
+        respectively. Therefore the slope of the line is -cos(theta) / sin(theta).
+
+        If the offset is 0, the line will go through the enemy center. Otherwise the line will undergo
+        a translation of `offset` in the direction away from our units. This point is then used for
+        the inequality based on the upcoming equation.
+
+        We can write the equation of the line in point slope form as:
+        y - enemy_y = -cos(theta) / sin(theta) * (x - enemy_x)
+
+        To avoid potentially dividing by zero, this can be written as:
+        sin(theta) * (y - enemy_y) = -cos(theta) * (x - enemy_x)
+        
+        While this is worse for drawing a line, we don't actually care about the line- we just want
+        to separate units based on it. If the two sides of the equation are equal, the point is on the line,
+        otherwise it's on one of the sides of the line. Since which side doesn't matter (the only relevant
+        information is how many units are on either side), we can divide units into two categories by
+        plugging in their position into the final equation and comparing the two sides.
+
+        This gives us the split of units and we determine surround status based on the ratio of units
+        on either side.
+        */
+        
+        // start getting the angle by applying a translation that moves the enemy to the origin
+        let our_adjusted_position: Vec<f32> = vec![
             our_center[0] - enemy_center[0],
             our_center[1] - enemy_center[1],
         ];
 
-        // our angle is now just atan2
-        let angle_to_origin = our_adjusted_position[1].atan2(our_adjusted_position[0]);
+        // use atan2 to get the angle
+        let angle_to_origin: f32 = our_adjusted_position[1].atan2(our_adjusted_position[0]);
 
         // We need sine and cosine for the inequality
-        let sincos = angle_to_origin.sin_cos();
+        let sincos: (f32, f32) = angle_to_origin.sin_cos();
 
         // Check which side of the line our units are on. Positive and negative don't actually matter,
         // we just need to be consistent. This may be harder to visualize, but it led to fewer
@@ -143,12 +172,17 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut side_one: f32 = 0.0;
         let mut side_two: f32 = 0.0;
 
+        // Adjust the angle so that it's pointing away from our units and apply the offset
+        let adjusted_angle: f32 = angle_to_origin + std::f32::consts::PI;
+        let enemy_x: f32 = enemy_center[0] + offset * adjusted_angle.cos();
+        let enemy_y: f32 = enemy_center[1] + offset * adjusted_angle.sin();
+
         for unit in units.iter() {
-            if get_squared_distance(unit.position, (enemy_center[0], enemy_center[1])) >= 300.0 {
+            if get_squared_distance(unit.position, (enemy_x, enemy_y)) >= 300.0 {
                 continue;
             }
-            let y = sincos.0 * (unit.position.1 - enemy_center[1]);
-            let x = sincos.1 * -(unit.position.0 - enemy_center[0]);
+            let y = sincos.0 * (unit.position.1 - enemy_y);
+            let x = sincos.1 * -(unit.position.0 - enemy_x);
             if y >= x {
                 side_one += 1.0;
             } else {
@@ -157,7 +191,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         if side_one == 0.0 || side_two == 0.0 {
             return false;
-        } else if 0.5 <= side_one / side_two && side_one / side_two <= 2.0 {
+        } else if 0.333 <= side_one / side_two && side_one / side_two <= 3.0 {
             return true;
         }
         return false;
@@ -165,7 +199,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn reference_cdist(xa: &Vec<Vec<f32>>, xb: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         // Form a matrix containing the pairwise distances between the points given
-        // This is for calling internally, Pythont functions should use "cdist"
+        // This is for calling internally, Python functions should use "cdist"
         // For Rust purposes, it makes more sense to have the input vectors be references
         // but I'm not sure how that works with pyo3, so there's a Python version
         let mut output_array = Vec::new();
