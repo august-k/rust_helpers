@@ -191,7 +191,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         if side_one == 0.0 || side_two == 0.0 {
             return false;
-        } else if 0.5 <= side_one / side_two && side_one / side_two <= 2.0 {
+        } else if 0.333 <= side_one / side_two && side_one / side_two <= 3.0 {
             return true;
         }
         return false;
