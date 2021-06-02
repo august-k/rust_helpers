@@ -99,7 +99,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // get the distance of each unit to each unit
         let distances = reference_cdist(&positions, &positions);
         for i in 0..distances.len() {
-            let mut units_found = 0;
+            let mut units_found: isize = 0;
             for j in 0..distances[i].len() {
                 if distances[i][j] < distance {
                     units_found += 1;
@@ -126,16 +126,16 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // center and then seeing the spread of our units on either side of the line.
 
         // start getting the angle by "moving" the enemy to the origin
-        let our_adjusted_position = vec![
+        let our_adjusted_position: Vec<f32> = vec![
             our_center[0] - enemy_center[0],
             our_center[1] - enemy_center[1],
         ];
 
         // our angle is now just atan2
-        let angle_to_origin = our_adjusted_position[1].atan2(our_adjusted_position[0]);
+        let angle_to_origin: f32 = our_adjusted_position[1].atan2(our_adjusted_position[0]);
 
         // We need sine and cosine for the inequality
-        let sincos = angle_to_origin.sin_cos();
+        let sincos: (f32, f32) = angle_to_origin.sin_cos();
 
         // Check which side of the line our units are on. Positive and negative don't actually matter,
         // we just need to be consistent. This may be harder to visualize, but it led to fewer
