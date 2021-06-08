@@ -1,7 +1,15 @@
+// Bounding Circle code adapted from somewhere
+
 mod sc2_unit;
+
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 
 use crate::sc2_unit::SC2Unit;
 use pyo3::prelude::*;
+
+const MULTIPLICATIVE_EPSILON: f32 = 1.00000000000001;
+const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
 
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -220,6 +228,176 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn euclidean_distance(p1: &Vec<f32>, p2: &Vec<f32>) -> f32 {
         return get_squared_distance((p1[0], p1[1]), (p2[0], p2[1])).sqrt();
+    }
+
+    fn hypot(x: f32, y: f32) -> f32 {
+        return (f32::powf(x, 2.0) + f32::powf(y, 2.0)).sqrt()
+    }
+
+    #[pyfn(m, "make_bounding_circle")]
+    fn make_bounding_circle(_py: Python, points: Vec<Vec<f32>>) -> (f32, f32, f32) {
+        let mut ref_points: Vec<&Vec<f32>> = Vec::new();
+        for p in points.iter() {
+            ref_points.push(p);
+        }
+        return make_circle(ref_points)
+    }
+
+
+    fn make_circle(points: Vec<&Vec<f32>>) -> (f32, f32, f32) {
+        let mut shuffled = points;
+        let mut rng = thread_rng();
+        shuffled.shuffle(&mut rng);
+
+        let mut c = (f32::NAN, f32::NAN, f32::NAN);
+        for (i, p) in shuffled.iter().cloned().enumerate() {
+            if c == NONEXISTENTCIRCLE || !is_in_circle(&c, &p) {
+                c = _make_circle_one_point(shuffled[i+1..].to_vec(), p.to_vec());
+            }
+        }
+
+        return c
+    }
+
+    fn _make_circle_one_point(points: Vec<&Vec<f32>>, p: Vec<f32>) -> (f32, f32, f32) {
+        let mut c = (p[0], p[1], 0.0f32);
+        for (i, q) in points.iter().enumerate() {
+            if !is_in_circle(&c, q) {
+                if c.2 == 0.0 {
+                    c = make_diameter(&p, &q);
+                }
+                else {
+                    c = make_circle_two_points(points[i+1..].to_vec(), p.to_vec(), q.to_vec());
+                }
+            }
+        }
+        return c
+    }
+
+    fn make_circle_two_points(points: Vec<&Vec<f32>>, p: Vec<f32>, q: Vec<f32>) -> (f32, f32, f32) {
+        let circle = make_diameter(&p, &q);
+        let mut left: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
+        let mut right: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
+        let px: f32 = p[0];
+        let py: f32 = p[1];
+        let qx: f32 = q[0];
+        let qy: f32 = q[1];
+
+        // For each point not in the two-point circle
+        for r in points.iter().cloned() {
+            if is_in_circle(&circle, r) {
+                continue;
+            }
+            // Form a circumcircle and classify it on left or right side
+            let cross = cross_product(&px, &py, &qx, &qy, &r[0], &r[1]);
+            let c = make_circumcircle(&p, &q, &r);
+            if c == NONEXISTENTCIRCLE {
+                continue
+            } else if cross > 0.0 && left == NONEXISTENTCIRCLE || cross_product(&px, &py, &qx, &qy, &c.0, &c.1) > cross_product(&px, &py, &qx, &qy, &left.0, &left.1) {
+                left = c;
+            } else if cross > 0.0 && right == NONEXISTENTCIRCLE || cross_product(&px, &py, &qx, &qy, &c.0, &c.1) > cross_product(&px, &py, &qx, &qy, &right.0, &right.1) {
+                right = c;
+            }
+        }
+        if left == NONEXISTENTCIRCLE && right == NONEXISTENTCIRCLE {
+            return circle
+        } else if left == NONEXISTENTCIRCLE {
+            return right
+        } else if right == NONEXISTENTCIRCLE {
+            return left
+        } else {
+            if left.2 <= right.2 {
+                return left
+            }
+            else {
+                return right
+            }
+        }
+    }
+
+    fn make_diameter(a: &Vec<f32>, b: &Vec<f32>) -> (f32, f32, f32) {
+        // Return the average of a and b and the radius of the circle centered on the average point that includes
+        // both a and b
+        let cx = (a[0] + b[0]) / 2.0;
+        let cy = (a[1] + b[1]) / 2.0;
+        let r0 = hypot(cx - a[0], cy - a[1]);
+        let r1 = hypot(cx - b[0], cy - b[1]);
+        return (cx, cy, get_max(&vec![r0, r1]))
+    }
+
+    fn make_circumcircle(a: &Vec<f32>, b: &Vec<f32>, c: &Vec<f32>) -> (f32, f32, f32) {
+        // Mathematical algorithm from Wikipedia: Circumscribed circle
+        let x_coords: Vec<f32> = vec![a[0], b[0], c[0]];
+        let y_coords: Vec<f32> = vec![a[1], b[1], c[1]];
+        let ox: f32 = (get_min(&x_coords) + get_max(&x_coords)) / 2.0;
+        let oy: f32 = (get_min(&y_coords) + get_max(&y_coords)) / 2.0;
+        
+        let ax: f32 = a[0] - ox;
+        let ay: f32 = a[1] - oy;
+        let bx: f32 = b[0] - ox;
+        let by: f32 = b[1] - oy;
+        let cx: f32 = c[0] - ox;
+        let cy: f32 = c[1] - oy;
+
+        let d: f32 = (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) * 2.0;
+        if d == 0.0 {
+            return (f32::NAN, f32::NAN, f32::NAN)
+        }
+
+        let x: f32 =
+            ox
+            + (
+                (ax * ax + ay * ay) * (by - cy)
+                + (bx * bx + by * by) * (cy - ay)
+                + (cx * cx + cy * cy) * (ay - by)
+            )
+            / d;
+        let y: f32 =
+            oy
+            + (
+                (ax * ax + ay * ay) * (cx - bx)
+                + (bx * bx + by * by) * (ax - cx)
+                + (cx * cx + cy * cy) * (bx - ax)
+            )
+            / d
+        ;
+
+        let ra: f32 = hypot(x - a[0], y - a[0]);
+        let rb: f32 = hypot(x - b[0], y - b[1]);
+        let rc: f32 = hypot(x - c[0], y - c[1]);
+
+        return (x, y, get_max(&vec![ra, rb, rc]))
+    }
+
+    fn is_in_circle(c: &(f32, f32, f32), p: &Vec<f32>) -> bool {
+        return c != &NONEXISTENTCIRCLE && hypot(p[0] - c.0, p[1] - c.1) <= c.2 * MULTIPLICATIVE_EPSILON
+    }
+
+    fn cross_product(x0: &f32, y0: &f32, x1: &f32, y1: &f32, x2: &f32, y2: &f32) -> f32 {
+        // Returns twice the signed area of the triangle defined by (x0, y0), (x1, y1), (x2, y2).
+        return (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
+    }
+
+    fn get_max(vector: &Vec<f32>) -> f32 {
+        // Rust doesn't have an easy way of getting the maximum value of a Vec<f32> so I'm using this.
+        let mut max = vector[0];
+        for val in vector.iter() {
+            if val > &max {
+                max = *val;
+            }
+        }
+        return max
+    }
+
+    fn get_min(vector: &Vec<f32>) -> f32 {
+        // Rust doesn't have an easy way of getting the minimum value of a Vec<f32> so I'm using this.
+        let mut min = vector[0];
+        for val in vector.iter() {
+            if val < &min {
+                min = *val;
+            }
+        }
+        return min
     }
 
     Ok(())
