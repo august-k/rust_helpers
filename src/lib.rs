@@ -173,9 +173,10 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut side_two: f32 = 0.0;
 
         // Adjust the angle so that it's pointing away from our units and apply the offset
+        // The radius of a Zergling is added to the offset so that the entire Zergling is behind the line
         let adjusted_angle: f32 = angle_to_origin + std::f32::consts::PI;
-        let enemy_x: f32 = enemy_center[0] + offset * adjusted_angle.cos();
-        let enemy_y: f32 = enemy_center[1] + offset * adjusted_angle.sin();
+        let enemy_x: f32 = enemy_center[0] + (offset + 0.375) * adjusted_angle.cos();
+        let enemy_y: f32 = enemy_center[1] + (offset + 0.375) * adjusted_angle.sin();
 
         for unit in units.iter() {
             if get_squared_distance(unit.position, (enemy_x, enemy_y)) >= 300.0 {
@@ -191,10 +192,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         if side_one == 0.0 || side_two == 0.0 {
             return false;
-        } else if 0.333 <= side_one / side_two && side_one / side_two <= 3.0 {
+        } else {
             return true;
         }
-        return false;
     }
 
     fn reference_cdist(xa: &Vec<Vec<f32>>, xb: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
