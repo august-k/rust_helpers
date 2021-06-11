@@ -106,8 +106,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // get the distance of each unit to each unit
         let distances = reference_cdist(&positions, &positions);
+        let mut units_found: isize;
         for i in 0..distances.len() {
-            let mut units_found: isize = 0;
+            units_found = 0;
             for j in 0..distances[i].len() {
                 if distances[i][j] < distance {
                     units_found += 1;
@@ -128,6 +129,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         our_center: Vec<f32>,
         enemy_center: Vec<f32>,
         offset: f32,
+        ratio: f32,
     ) -> bool {
         /*
         Determine whether we have enough of our surrounding units
@@ -200,6 +202,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         if side_one == 0.0 || side_two == 0.0 {
             return false;
+        } else if side_one / side_two <= (1.0 / ratio) && side_one / side_two <= ratio {
+            return true;
         } else {
             return true;
         }
@@ -236,7 +240,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m, "make_bounding_circle")]
     fn make_bounding_circle(_py: Python, points: Vec<Vec<f32>>) -> (f32, f32, f32) {
+        // Return (x_coordinate, y_coordinate, radius) of the circle bounding the points given
         let mut ref_points: Vec<&Vec<f32>> = Vec::new();
+        // Needed &Vec and this was the only way I could think to do it
         for p in points.iter() {
             ref_points.push(p);
         }
