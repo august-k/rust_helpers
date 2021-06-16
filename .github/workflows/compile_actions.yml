@@ -82,4 +82,4 @@ jobs:
         name: Upload archive
         with:
           name: ${{ matrix.os }}_python${{ matrix.python-version }}
-          path: .
+          path: ${{ secrets.GITHUB_WORKSPACE}}/rusthelpers/
