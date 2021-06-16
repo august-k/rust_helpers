@@ -82,4 +82,4 @@ jobs:
         name: Upload archive
         with:
           name: ${{ matrix.os }}_python${{ matrix.python-version }}
-          path: rusthelpers/
+          path: ~/rusthelpers/
