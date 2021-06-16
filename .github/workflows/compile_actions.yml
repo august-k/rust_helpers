@@ -85,3 +85,4 @@ jobs:
             target/wheels/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        tag: tag
