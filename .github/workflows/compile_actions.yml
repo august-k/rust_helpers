@@ -78,11 +78,8 @@ jobs:
           pip install maturin
           maturin develop --release
       
-      - name: Release
-        uses: softprops/action-gh-release@v1
+      - uses: actions/upload-artifact@v1
+        name: Upload archive
         with:
-          files: |
-            target/wheels/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        tag: tag
+          name: ${{ matrix.os }}_python${{ matrix.python-version }}
+          path: rusthelpers/
