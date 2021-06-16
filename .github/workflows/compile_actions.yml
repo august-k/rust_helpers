@@ -81,5 +81,5 @@ jobs:
       - uses: actions/upload-artifact@v1
         name: Upload archive
         with:
-          name: ${{ matrix.os }}_python${{ matrix.python-version }}
-          path: ${{ secrets.GITHUB_WORKSPACE}}/rusthelpers/
+          name: ${{ matrix.os }}_python${{ matrix.python-version }}_rust_helpers
+          path: rusthelpers/
