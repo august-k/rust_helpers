@@ -493,9 +493,12 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             fodder_positions.push(vec![unit.position.0, unit.position.1]);
         }
 
-        let fodder_distances_raw: Vec<Vec<f32>> = reference_cdist(&fodder_positions, &enemy_center_vector);
-        let fodder_distances: &Vec<f32> = &fodder_distances_raw[0];
-        let max_fodder_distance: f32 = get_max(fodder_distances);
+        let fodder_distances: Vec<Vec<f32>> = reference_cdist(&fodder_positions, &enemy_center_vector);
+        let mut fodder_vec: Vec<f32> = Vec::new();
+        for dist in fodder_distances.iter() {
+            fodder_vec.push(dist[0]);
+        }
+        let max_fodder_distance: f32 = get_max(&fodder_vec);
 
         // Get the distances from our core units to the enemy center
         let mut core_positions: Vec<Vec<f32>> = Vec::new();
@@ -503,13 +506,16 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             core_positions.push(vec![unit.position.0, unit.position.1]);
         }
 
-        let core_distances_raw: Vec<Vec<f32>> = reference_cdist(&core_positions, &enemy_center_vector);
-        let core_distances: &Vec<f32> = &core_distances_raw[0];
-        let min_core_distance: f32 = get_min(core_distances);
+        let core_distances: Vec<Vec<f32>> = reference_cdist(&core_positions, &enemy_center_vector);
+        let mut core_vec: Vec<f32> = Vec::new();
+        for dist in core_distances.iter() {
+            core_vec.push(dist[0]);
+        }
+        let min_core_distance: f32 = get_min(&core_vec);
 
         // Identify if a core unit is closer to the enemy than the furthest fodder unit. If it is, back up.
         for index in 0..core_units.len() {
-            if core_distances[index] < max_fodder_distance {
+            if core_distances[index][0] < max_fodder_distance {
                 let new_position: (f32, f32) = (core_units[index].position.0 + sincos.1, core_units[index].position.1 + sincos.0);
                 tag_to_position.insert(core_units[index].tag, new_position);
             }
@@ -517,7 +523,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // Identify if a fodder unit is further from the enemy than the closest core unit. If it is, back up.
         for index in 0..fodder_units.len() {
-            if fodder_distances[index] > min_core_distance {
+            if fodder_distances[index][0] > min_core_distance {
                 let new_position: (f32, f32) = (fodder_units[index].position.0 - sincos.1, fodder_units[index].position.1 - sincos.0);
                 tag_to_position.insert(fodder_units[index].tag, new_position);
             }
@@ -547,7 +553,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut core_units: Vec<SC2Unit> = Vec::new();
         let mut fodder_units: Vec<SC2Unit> = Vec::new();
 
-        for unit in our_units.iter() {
+        for unit in our_units.iter() {  
             if fodder_tags.contains(&unit.tag) {
                 fodder_units.push(*unit);
             }
@@ -562,8 +568,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             core_positions.push(vec![unit.position.0, unit.position.1]);
         }
 
-        let core_distances_raw: Vec<Vec<f32>> = reference_cdist(&core_positions, &move_target);
-        let core_distances: &Vec<f32> = &core_distances_raw[0];
+        let core_distances: Vec<Vec<f32>> = reference_cdist(&core_positions, &move_target);
 
         // Get the distances of the fodder units to the move target
         let mut fodder_positions: Vec<Vec<f32>> = Vec::new();
@@ -572,12 +577,15 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         let fodder_distances_raw: Vec<Vec<f32>> = reference_cdist(&fodder_positions, &move_target);
-        let fodder_distances: &Vec<f32> = &fodder_distances_raw[0];
-        let max_fodder_distance: f32 = get_max(fodder_distances);
+        let mut fodder_vec: Vec<f32> = Vec::new();
+        for dist in fodder_distances_raw.iter() {
+            fodder_vec.push(dist[0]);
+        }
+        let max_fodder_distance: f32 = get_max(&fodder_vec);
 
         // If a core unit has a distance less than the maximum fodder distance, tell it not to move
         for index in 0..core_units.len() {
-            if core_distances[index] < max_fodder_distance {
+            if core_distances[index][0] < max_fodder_distance {
                 stop_tags.push(core_units[index].tag);
             }
         }
