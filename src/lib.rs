@@ -4,6 +4,7 @@ mod sc2_unit;
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use std::collections::HashMap;
 
 use crate::sc2_unit::SC2Unit;
 use pyo3::prelude::*;
@@ -13,7 +14,7 @@ const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
 
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
-    #[pyfn(m, "get_neighbors")]
+    #[pyfn(m)] #[pyo3(name="get_neighbors")]
     fn get_neighbors(_py: Python, raw_point: (f32, f32)) -> Vec<(i32, i32)> {
         // Return the 8 neighboring coordinates of point
         let mut neighbors: Vec<(i32, i32)> = Vec::with_capacity(8);
@@ -32,7 +33,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return neighbors;
     }
 
-    #[pyfn(m, "closest_unit_index_to")]
+    #[pyfn(m)] #[pyo3(name="closest_unit_index_to")]
     fn closest_unit_index_to(
         _py: Python,
         units: Vec<SC2Unit>,
@@ -50,7 +51,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return closest_index;
     }
 
-    #[pyfn(m, "closest_position_index_to")]
+    #[pyfn(m)] #[pyo3(name="closest_position_index_to")]
     fn closest_position_index_to(
         _py: Python,
         positions: Vec<(f32, f32)>,
@@ -68,7 +69,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return closest_index;
     }
 
-    #[pyfn(m, "cdist")]
+    #[pyfn(m)] #[pyo3(name="cdist")]
     fn cdist(_py: Python, xa: Vec<Vec<f32>>, xb: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         // Form a matrix containing the pairwise distances between the points given
         // This is for calling from Python, Rust functions should use "reference_cdist"
@@ -85,7 +86,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return output_array;
     }
 
-    #[pyfn(m, "find_center_mass")]
+    #[pyfn(m)] #[pyo3(name="find_center_mass")]
     fn find_center_mass(
         _py: Python,
         units: Vec<SC2Unit>,
@@ -122,7 +123,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return (max_units_found, center_position.to_vec());
     }
 
-    #[pyfn(m, "surround_complete")]
+    #[pyfn(m)] #[pyo3(name="surround_complete")]
     fn surround_complete(
         _py: Python,
         units: Vec<SC2Unit>,
@@ -238,7 +239,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return (f32::powf(x, 2.0) + f32::powf(y, 2.0)).sqrt()
     }
 
-    #[pyfn(m, "make_bounding_circle")]
+    #[pyfn(m)] #[pyo3(name="make_bounding_circle")]
     fn make_bounding_circle(_py: Python, points: Vec<Vec<f32>>) -> (f32, f32, f32) {
         // Return (x_coordinate, y_coordinate, radius) of the circle bounding the points given
         let mut ref_points: Vec<&Vec<f32>> = Vec::new();
@@ -404,6 +405,184 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
         return min
+    }
+
+    fn get_positions_center(positions: Vec<(f32, f32)>) -> (f32, f32) {
+        // Given a list of positions, get the mean position.
+        let mut tot_x: f32 = 0.0;
+        let mut tot_y: f32 = 0.0;
+        for coords in positions.iter() {
+            tot_x += coords.0;
+            tot_y += coords.1;
+        }
+        let num_positions: f32 = positions.len() as f32;
+        return (tot_x / num_positions, tot_y / num_positions)
+    }
+
+    fn get_units_center(units: &Vec<SC2Unit>) -> (f32, f32) {
+        // Given a list of units, get the mean position.
+        let mut position_vector = Vec::new();
+        for unit in units.iter() {
+            position_vector.push(unit.position);
+        }
+        return get_positions_center(position_vector)
+    }
+
+    #[pyfn(m)] #[pyo3(name="adjust_combat_formation")]
+    fn adjust_combat_formation(_py: Python, our_units: Vec<SC2Unit>, enemies: Vec<SC2Unit>, mut fodder_tags: Vec<u64>, _caster_tags: Vec<u64>) -> HashMap<u64, (f32, f32)> {
+        // Takes our units, enemy units, our fodder units, and our casters
+        // Returns a (Python) list of tags and positions, where each position is where the unit with that tag should move
+
+        // This will be the dictionary of tag to new position
+        let mut tag_to_position: HashMap<u64, (f32, f32)> = HashMap::new();
+
+        // Identify fodder units. If fodder tags are given, those are the fodder units. If they aren't, the fodder units
+        // are the units with a health percentage higher than the average.
+        if fodder_tags.len() == 0 {
+            let mut total_health_percent: f32 = 0.0;
+            for unit in our_units.iter() {
+                total_health_percent += unit.health_percentage
+            }
+            let avg_health: f32 = total_health_percent / our_units.len() as f32;
+            for unit in our_units.iter() {
+                if unit.health_percentage > avg_health {
+                    fodder_tags.push(unit.tag)
+                }
+            }
+        }
+
+        // If there are no fodder tags, none of the units will need their positions adjusted
+        if fodder_tags.len() == 0 {
+            return tag_to_position;
+        }
+
+        // Separate the core units from the fodder units
+        let mut core_units: Vec<SC2Unit> = Vec::new();
+        let mut fodder_units: Vec<SC2Unit> = Vec::new();
+
+        for unit in our_units.iter() {
+            if fodder_tags.contains(&unit.tag) {
+                fodder_units.push(*unit);
+            }
+            else {
+                core_units.push(*unit);
+            }
+        }
+
+        // Find the center of the units so we can get properly align retreat paths
+        let our_center: (f32, f32) = get_units_center(&our_units);
+        let enemy_center: (f32, f32) = get_units_center(&enemies);
+        // We'll need the enemy center as a vector of vectors later for cdist
+        let enemy_center_vector: Vec<Vec<f32>> = vec![vec![enemy_center.0, enemy_center.1]];
+
+        // start getting the angle by applying a translation that moves the enemy to the origin
+        let our_adjusted_position: Vec<f32> = vec![
+            our_center.0 - enemy_center.0,
+            our_center.1 - enemy_center.1,
+        ];
+
+        // use atan2 to get the angle
+        let angle_to_origin: f32 = our_adjusted_position[1].atan2(our_adjusted_position[0]);
+
+        // We need sine and cosine so that we can give the correct retreat position
+        let sincos: (f32, f32) = angle_to_origin.sin_cos();
+
+        // Get the distances from our fodder units to the enemy center
+        let mut fodder_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in fodder_units.iter() {
+            fodder_positions.push(vec![unit.position.0, unit.position.1]);
+        }
+
+        let fodder_distances_raw: Vec<Vec<f32>> = reference_cdist(&fodder_positions, &enemy_center_vector);
+        let fodder_distances: &Vec<f32> = &fodder_distances_raw[0];
+        let max_fodder_distance: f32 = get_max(fodder_distances);
+
+        // Get the distances from our core units to the enemy center
+        let mut core_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in core_units.iter() {
+            core_positions.push(vec![unit.position.0, unit.position.1]);
+        }
+
+        let core_distances_raw: Vec<Vec<f32>> = reference_cdist(&core_positions, &enemy_center_vector);
+        let core_distances: &Vec<f32> = &core_distances_raw[0];
+        let min_core_distance: f32 = get_min(core_distances);
+
+        // Identify if a core unit is closer to the enemy than the furthest fodder unit. If it is, back up.
+        for index in 0..core_units.len() {
+            if core_distances[index] < max_fodder_distance {
+                let new_position: (f32, f32) = (core_units[index].position.0 + sincos.1, core_units[index].position.1 + sincos.0);
+                tag_to_position.insert(core_units[index].tag, new_position);
+            }
+        }
+
+        // Identify if a fodder unit is further from the enemy than the closest core unit. If it is, back up.
+        for index in 0..fodder_units.len() {
+            if fodder_distances[index] > min_core_distance {
+                let new_position: (f32, f32) = (fodder_units[index].position.0 - sincos.1, fodder_units[index].position.1 - sincos.0);
+                tag_to_position.insert(fodder_units[index].tag, new_position);
+            }
+        }
+
+        // Return the units that need to be moved as a (Python) Dict of tag to new position
+        return tag_to_position;
+
+    }
+
+    #[pyfn(m)] #[pyo3(name="adjust_moving_formation")]
+    fn adjust_moving_formation(_py: Python, our_units: Vec<SC2Unit>, target: (f32, f32), fodder_tags: Vec<u64>) -> Vec<u64> {
+        // Make sure core units are behind the fodder units by not moving them.
+
+        // Create hashmap to be used as dictionary
+        let mut stop_tags: Vec<u64> = Vec::new();
+
+        // We need the enemy center as a vector later
+        let move_target = vec![vec![target.0, target.1]];
+
+        // If there are no fodder tags, none of the units will need their positions adjusted
+        if fodder_tags.len() == 0 {
+            return stop_tags;
+        }
+
+        // Separate the core units from the fodder units
+        let mut core_units: Vec<SC2Unit> = Vec::new();
+        let mut fodder_units: Vec<SC2Unit> = Vec::new();
+
+        for unit in our_units.iter() {
+            if fodder_tags.contains(&unit.tag) {
+                fodder_units.push(*unit);
+            }
+            else {
+                core_units.push(*unit);
+            }
+        }
+
+        // Get the distances of all core units to the move target
+        let mut core_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in core_units.iter() {
+            core_positions.push(vec![unit.position.0, unit.position.1]);
+        }
+
+        let core_distances_raw: Vec<Vec<f32>> = reference_cdist(&core_positions, &move_target);
+        let core_distances: &Vec<f32> = &core_distances_raw[0];
+
+        // Get the distances of the fodder units to the move target
+        let mut fodder_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in fodder_units.iter() {
+            fodder_positions.push(vec![unit.position.0, unit.position.1]);
+        }
+
+        let fodder_distances_raw: Vec<Vec<f32>> = reference_cdist(&fodder_positions, &move_target);
+        let fodder_distances: &Vec<f32> = &fodder_distances_raw[0];
+        let max_fodder_distance: f32 = get_max(fodder_distances);
+
+        // If a core unit has a distance less than the maximum fodder distance, tell it not to move
+        for index in 0..core_units.len() {
+            if core_distances[index] < max_fodder_distance {
+                stop_tags.push(core_units[index].tag);
+            }
+        }
+
+        return stop_tags;
     }
 
     Ok(())
