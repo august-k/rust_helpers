@@ -498,8 +498,6 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         for dist in fodder_distances.iter() {
             fodder_vec.push(dist[0]);
         }
-        let max_fodder_distance: f32 = get_max(&fodder_vec);
-
         // Get the distances from our core units to the enemy center
         let mut core_positions: Vec<Vec<f32>> = Vec::new();
         for unit in core_units.iter() {
@@ -511,19 +509,26 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         for dist in core_distances.iter() {
             core_vec.push(dist[0]);
         }
-        let min_core_distance: f32 = get_min(&core_vec);
 
-        // Identify if a core unit is closer to the enemy than the furthest fodder unit. If it is, back up.
+        // Mean positions will be used for determining whether units needs to be moved
+        let core_mean: (f32, f32) = get_units_center(&core_units);
+        let core_mean_distance: f32 = euclidean_distance(&vec![core_mean.0, core_mean.1], &enemy_center_vector[0]);
+
+        let fodder_mean: (f32, f32) = get_units_center(&fodder_units);
+        let fodder_mean_distance: f32 = euclidean_distance(&vec![fodder_mean.0, fodder_mean.1], &enemy_center_vector[0]);
+
+
+        // Identify if a core unit is closer to the enemy than the fodder mean. If it is, back up.
         for index in 0..core_units.len() {
-            if core_distances[index][0] < max_fodder_distance {
+            if core_distances[index][0] < fodder_mean_distance {
                 let new_position: (f32, f32) = (core_units[index].position.0 + sincos.1, core_units[index].position.1 + sincos.0);
                 tag_to_position.insert(core_units[index].tag, new_position);
             }
         }
 
-        // Identify if a fodder unit is further from the enemy than the closest core unit. If it is, back up.
+        // Identify if a fodder unit is further from the enemy than core mean. If it is, back up.
         for index in 0..fodder_units.len() {
-            if fodder_distances[index][0] > min_core_distance {
+            if fodder_distances[index][0] > core_mean_distance {
                 let new_position: (f32, f32) = (fodder_units[index].position.0 - sincos.1, fodder_units[index].position.1 - sincos.0);
                 tag_to_position.insert(fodder_units[index].tag, new_position);
             }
