@@ -451,8 +451,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        // If there are no fodder tags, none of the units will need their positions adjusted
-        if fodder_tags.len() == 0 {
+        // If there are no fodder tags or enemies, none of the units will need their positions adjusted
+        if fodder_tags.len() == 0 || enemies.len() == 0 {
             return tag_to_position;
         }
 
