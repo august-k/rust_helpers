@@ -486,6 +486,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // We need sine and cosine so that we can give the correct retreat position
         let sincos: (f32, f32) = angle_to_origin.sin_cos();
+        // Units were bumping into each other, trying giving further commands
+        let x_offset: f32 = sincos.1 * 3.0;
+        let y_offset: f32 = sincos.0 * 3.0;
 
         // Get the distances from our fodder units to the enemy center
         let mut fodder_positions: Vec<Vec<f32>> = Vec::new();
@@ -521,7 +524,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // Identify if a core unit is closer to the enemy than the fodder mean. If it is, back up.
         for index in 0..core_units.len() {
             if core_distances[index][0] < fodder_mean_distance {
-                let new_position: (f32, f32) = (core_units[index].position.0 + sincos.1, core_units[index].position.1 + sincos.0);
+                let new_position: (f32, f32) = (core_units[index].position.0 + x_offset, core_units[index].position.1 + y_offset);
                 tag_to_position.insert(core_units[index].tag, new_position);
             }
         }
@@ -529,7 +532,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // Identify if a fodder unit is further from the enemy than core mean. If it is, back up.
         for index in 0..fodder_units.len() {
             if fodder_distances[index][0] > core_mean_distance {
-                let new_position: (f32, f32) = (fodder_units[index].position.0 - sincos.1, fodder_units[index].position.1 - sincos.0);
+                let new_position: (f32, f32) = (fodder_units[index].position.0 - x_offset, fodder_units[index].position.1 - y_offset);
                 tag_to_position.insert(fodder_units[index].tag, new_position);
             }
         }
