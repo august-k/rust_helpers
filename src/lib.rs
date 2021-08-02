@@ -438,7 +438,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         _py: Python,
         our_units: Vec<SC2Unit>,
         enemies: Vec<SC2Unit>,
-        mut fodder_tags: Vec<u64>,
+        fodder_tags: Vec<u64>,
         core_unit_multiplier: f32,
         fodder_unit_multiplier: f32,
         retreat_angle: f32,
@@ -449,21 +449,6 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // This will be the dictionary of tag to new position
         let mut tag_to_position: HashMap<u64, (f32, f32)> = HashMap::new();
-
-        // Identify fodder units. If fodder tags are given, those are the fodder units. If they aren't, the fodder units
-        // are the units with a health percentage higher than the average.
-        if fodder_tags.len() == 0 {
-            let mut total_health_percent: f32 = 0.0;
-            for unit in our_units.iter() {
-                total_health_percent += unit.health_percentage
-            }
-            let avg_health: f32 = total_health_percent / our_units.len() as f32;
-            for unit in our_units.iter() {
-                if unit.health_percentage > avg_health {
-                    fodder_tags.push(unit.tag)
-                }
-            }
-        }
 
         // If there are no fodder tags or enemies, none of the units will need their positions adjusted
         if fodder_tags.len() == 0 || enemies.len() == 0 {
