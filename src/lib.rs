@@ -690,5 +690,62 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         return (new_x, new_y);
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "get_spore_forest_positions")]
+    fn get_spore_forest_positions(
+        _py: Python,
+        center_point: (f32, f32),
+        row_count: isize,
+        column_count: isize,
+        spacing: f32,
+    ) -> Vec<(i32, i32)> {
+        /*
+        Create a diamondish grid where each center point is `spacing` away from its neighbors.
+        The intersection points for circles with radius R and centers at the origin and (R, 0)
+        is (R * cos(PI/3), +/- R * sin(PI/3)), or (R * .5, +/- R * .866). Therefore, each spore
+        in a row should be R away from its neighbor in that row and the rows should be R * .866 apart.
+        This results in the spores being equidistant to their neighbors in rows and columns.
+
+        However, this causes some problems as far as SC2 is concerned. Buildings have to fully fill
+        the tiles they occupy, so Spore Crawlers (2x2 buildings) can only be placed at integer
+        coordinates. Therefore, we round the calculated positions to get something close enough to the
+        initial grid that still gives us better starting coordinates for finding final placements.
+        */
+        let mut raw_spore_positions: Vec<(i32, i32)> = Vec::new();
+
+        // We want the center spore to be close to the center point. By subtracting half of the amount
+        // of rows/columns (rounded down) from the iteration variable, we can offset the values to span
+        // from -half to +half. For instance, [0, 1, 2, 3, 4] becomes [-2, -1, 0, 1, 2]. This clearly
+        // works best with odd values, but it's "good enough" for even values.
+        let row_iterator_shift: f32 = (row_count / 2) as f32;
+        let column_iterator_shift: f32 = (column_count / 2) as f32;
+
+        // We want to place spores in a diamond shape, so every other spore in a column should be moved
+        // in between the two spores in the rows above and below it
+        let column_offset = spacing * 0.5;
+        // How far each row should be from the neighboring rows
+        // We don't have to calculate this for columns because we want to move each one over by `spacing`
+        let row_distance = spacing * 0.866;
+
+        for j in 0..row_count {
+            for i in 0..column_count {
+                // Separated as x and y for legibility. Back/forward/up/down are relative to the center
+                let x = (spacing * (i as f32 - column_iterator_shift)     // How far back or forwards to put the spore
+                    + (column_offset * ((j + 1) % 2) as f32)    // Whether this spore needs to be moved over
+                    + center_point.0)
+                    .round(); // The starting point should be the center
+
+                let y = (row_distance * (j as f32 - row_iterator_shift) + center_point.1).round(); // Same process as above, minus offset
+                raw_spore_positions.push((x as i32, y as i32));
+            }
+        }
+
+        // Now that we have the raw positions for each spore, figure out where we can actually put them.
+        // SC2 requires that the point and the 3 points "below" the placement be pathable and placeable.
+        // Currently this is handled in Python, so just return what we have.
+
+        return raw_spore_positions;
+    }
+
     Ok(())
 }
