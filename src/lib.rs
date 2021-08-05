@@ -31,7 +31,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 neighbors.push((point[0] + i - 1, point[1] + j - 1));
             }
         }
-        return neighbors;
+        neighbors
     }
 
     #[pyfn(m)]
@@ -50,7 +50,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 closest_distance = dist;
             }
         }
-        return closest_index;
+        closest_index
     }
 
     #[pyfn(m)]
@@ -69,7 +69,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 closest_distance = dist;
             }
         }
-        return closest_index;
+        closest_index
     }
 
     #[pyfn(m)]
@@ -87,7 +87,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             output_array.push(curr_row);
         }
 
-        return output_array;
+        output_array
     }
 
     #[pyfn(m)]
@@ -125,7 +125,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 center_position = &positions[i];
             }
         }
-        return (max_units_found, center_position.to_vec());
+        (max_units_found, center_position.to_vec())
     }
 
     #[pyfn(m)]
@@ -208,11 +208,11 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
         if side_one == 0.0 || side_two == 0.0 {
-            return false;
+            false
         } else if side_one / side_two <= (1.0 / ratio) && side_one / side_two <= ratio {
-            return true;
+            true
         } else {
-            return true;
+            true
         }
     }
 
@@ -230,19 +230,19 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
             output_array.push(curr_row);
         }
-        return output_array;
+        output_array
     }
 
     fn get_squared_distance(p1: (f32, f32), p2: (f32, f32)) -> f32 {
-        return f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0);
+        f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0)
     }
 
     fn euclidean_distance(p1: &Vec<f32>, p2: &Vec<f32>) -> f32 {
-        return get_squared_distance((p1[0], p1[1]), (p2[0], p2[1])).sqrt();
+        get_squared_distance((p1[0], p1[1]), (p2[0], p2[1])).sqrt()
     }
 
     fn hypot(x: f32, y: f32) -> f32 {
-        return (f32::powf(x, 2.0) + f32::powf(y, 2.0)).sqrt();
+        (f32::powf(x, 2.0) + f32::powf(y, 2.0)).sqrt()
     }
 
     #[pyfn(m)]
@@ -254,7 +254,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         for p in points.iter() {
             ref_points.push(p);
         }
-        return make_circle(ref_points);
+        make_circle(ref_points)
     }
 
     fn make_circle(points: Vec<&Vec<f32>>) -> (f32, f32, f32) {
@@ -264,12 +264,12 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         let mut c = (f32::NAN, f32::NAN, f32::NAN);
         for (i, p) in shuffled.iter().cloned().enumerate() {
-            if c == NONEXISTENTCIRCLE || !is_in_circle(&c, &p) {
+            if c == NONEXISTENTCIRCLE || !is_in_circle(&c, p) {
                 c = _make_circle_one_point(shuffled[i + 1..].to_vec(), p.to_vec());
             }
         }
 
-        return c;
+        c
     }
 
     fn _make_circle_one_point(points: Vec<&Vec<f32>>, p: Vec<f32>) -> (f32, f32, f32) {
@@ -277,13 +277,13 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         for (i, q) in points.iter().enumerate() {
             if !is_in_circle(&c, q) {
                 if c.2 == 0.0 {
-                    c = make_diameter(&p, &q);
+                    c = make_diameter(&p, q);
                 } else {
                     c = make_circle_two_points(points[i + 1..].to_vec(), p.to_vec(), q.to_vec());
                 }
             }
         }
-        return c;
+        c
     }
 
     fn make_circle_two_points(points: Vec<&Vec<f32>>, p: Vec<f32>, q: Vec<f32>) -> (f32, f32, f32) {
@@ -302,7 +302,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
             // Form a circumcircle and classify it on left or right side
             let cross = cross_product(&px, &py, &qx, &qy, &r[0], &r[1]);
-            let c = make_circumcircle(&p, &q, &r);
+            let c = make_circumcircle(&p, &q, r);
             if c == NONEXISTENTCIRCLE {
                 continue;
             } else if cross > 0.0 && left == NONEXISTENTCIRCLE
@@ -318,17 +318,15 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
         if left == NONEXISTENTCIRCLE && right == NONEXISTENTCIRCLE {
-            return circle;
+            circle
         } else if left == NONEXISTENTCIRCLE {
-            return right;
+            right
         } else if right == NONEXISTENTCIRCLE {
-            return left;
+            left
+        } else if left.2 <= right.2 {
+            left
         } else {
-            if left.2 <= right.2 {
-                return left;
-            } else {
-                return right;
-            }
+            right
         }
     }
 
@@ -339,7 +337,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let cy = (a[1] + b[1]) / 2.0;
         let r0 = hypot(cx - a[0], cy - a[1]);
         let r1 = hypot(cx - b[0], cy - b[1]);
-        return (cx, cy, get_max(&vec![r0, r1]));
+        (cx, cy, get_max(&vec![r0, r1]))
     }
 
     fn make_circumcircle(a: &Vec<f32>, b: &Vec<f32>, c: &Vec<f32>) -> (f32, f32, f32) {
@@ -376,17 +374,17 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let rb: f32 = hypot(x - b[0], y - b[1]);
         let rc: f32 = hypot(x - c[0], y - c[1]);
 
-        return (x, y, get_max(&vec![ra, rb, rc]));
+        (x, y, get_max(&vec![ra, rb, rc]))
     }
 
     fn is_in_circle(c: &(f32, f32, f32), p: &Vec<f32>) -> bool {
-        return c != &NONEXISTENTCIRCLE
-            && hypot(p[0] - c.0, p[1] - c.1) <= c.2 * MULTIPLICATIVE_EPSILON;
+        c != &NONEXISTENTCIRCLE
+            && hypot(p[0] - c.0, p[1] - c.1) <= c.2 * MULTIPLICATIVE_EPSILON
     }
 
     fn cross_product(x0: &f32, y0: &f32, x1: &f32, y1: &f32, x2: &f32, y2: &f32) -> f32 {
         // Returns twice the signed area of the triangle defined by (x0, y0), (x1, y1), (x2, y2).
-        return (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+        (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
     }
 
     fn get_max(vector: &Vec<f32>) -> f32 {
@@ -397,7 +395,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 max = *val;
             }
         }
-        return max;
+        max
     }
 
     fn get_min(vector: &Vec<f32>) -> f32 {
@@ -408,7 +406,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 min = *val;
             }
         }
-        return min;
+        min
     }
 
     fn get_positions_center(positions: Vec<(f32, f32)>) -> (f32, f32) {
@@ -420,7 +418,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             tot_y += coords.1;
         }
         let num_positions: f32 = positions.len() as f32;
-        return (tot_x / num_positions, tot_y / num_positions);
+        (tot_x / num_positions, tot_y / num_positions)
     }
 
     fn get_units_center(units: &Vec<SC2Unit>) -> (f32, f32) {
@@ -429,7 +427,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         for unit in units.iter() {
             position_vector.push(unit.position);
         }
-        return get_positions_center(position_vector);
+        get_positions_center(position_vector)
     }
 
     #[pyfn(m)]
@@ -451,7 +449,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut tag_to_position: HashMap<u64, (f32, f32)> = HashMap::new();
 
         // If there are no fodder tags or enemies, none of the units will need their positions adjusted
-        if fodder_tags.len() == 0 || enemies.len() == 0 {
+        if fodder_tags.is_empty() || enemies.is_empty() {
             return tag_to_position;
         }
 
@@ -558,7 +556,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         // Return the units that need to be moved as a (Python) Dict of tag to new position
-        return tag_to_position;
+        tag_to_position
     }
 
     #[pyfn(m)]
@@ -580,7 +578,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let move_target = vec![vec![target.0, target.1]];
 
         // If there are no fodder tags, none of the units will need their positions adjusted
-        if fodder_tags.len() == 0 {
+        if fodder_tags.is_empty() {
             return core_unit_repositioning;
         }
 
@@ -660,7 +658,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        return core_unit_repositioning;
+        core_unit_repositioning
     }
 
     #[pyfn(m)]
@@ -680,14 +678,14 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        return close_positions;
+        close_positions
     }
 
     fn rotate_by_angle(point: (f32, f32), angle: f32) -> (f32, f32) {
         let sincos = angle.sin_cos();
         let new_x = point.0 * sincos.1 - point.1 * sincos.0;
         let new_y = point.0 * sincos.0 + point.1 * sincos.1;
-        return (new_x, new_y);
+        (new_x, new_y)
     }
 
     #[pyfn(m)]
@@ -744,7 +742,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // SC2 requires that the point and the 3 points "below" the placement be pathable and placeable.
         // Currently this is handled in Python, so just return what we have.
 
-        return raw_spore_positions;
+        raw_spore_positions
     }
 
     Ok(())
