@@ -12,6 +12,9 @@ use pyo3::prelude::*;
 const MULTIPLICATIVE_EPSILON: f32 = 1.00000000000001;
 const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
 
+extern crate ndarray;
+use numpy::PyReadonlyArray2;
+
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
@@ -695,10 +698,13 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyo3(name = "get_spore_forest_positions")]
     fn get_spore_forest_positions(
         _py: Python,
+        spore_crawlers: Vec<SC2Unit>,
         center_point: (f32, f32),
-        row_count: isize,
-        column_count: isize,
         spacing: f32,
+        creep: PyReadonlyArray2<i32>,
+        placement: PyReadonlyArray2<i32>,
+        vision: PyReadonlyArray2<i32>,
+        tumors: Vec<SC2Unit>,
     ) -> Vec<(i32, i32)> {
         /*
         Create a diamondish grid where each center point is `spacing` away from its neighbors.
@@ -713,6 +719,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         initial grid that still gives us better starting coordinates for finding final placements.
         */
         let mut raw_spore_positions: Vec<(i32, i32)> = Vec::new();
+
+        let row_count = f32::powf(spore_crawlers.len() as f32, 0.5).round() as isize;
+        let column_count = f32::powf(spore_crawlers.len() as f32, 0.5).round() as isize;
 
         // We want the center spore to be close to the center point. By subtracting half of the amount
         // of rows/columns (rounded down) from the iteration variable, we can offset the values to span
@@ -745,7 +754,74 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // SC2 requires that the point and the 3 points "below" the placement be pathable and placeable.
         // Currently this is handled in Python, so just return what we have.
 
-        raw_spore_positions
+        let mut valid_positions: Vec<(i32, i32)> = Vec::new();
+        let mut invalid_positions: Vec<(i32, i32)> = Vec::new();
+
+        for point in raw_spore_positions.iter() {
+            if is_valid_spore_position(point, &tumors, &vision, &placement, &creep) {
+                valid_positions.push(*point)
+            } else {
+                invalid_positions.push(*point);
+            }
+        }
+
+        return valid_positions;
+    }
+
+    fn is_valid_spore_position(
+        raw_point: &(i32, i32),
+        tumors: &Vec<SC2Unit>,
+        vision_grid: &PyReadonlyArray2<i32>,
+        placement_grid: &PyReadonlyArray2<i32>,
+        creep_grid: &PyReadonlyArray2<i32>,
+    ) -> bool {
+        let int_point: (usize, usize) = (raw_point.0 as usize, raw_point.1 as usize);
+        // Make sure the point is far enough away from a creep tumor, else there's no need to do the other checks
+        let mut tumor_positions: Vec<Vec<f32>> = Vec::new();
+        for tumor in tumors.iter() {
+            tumor_positions.push(vec![tumor.position.0, tumor.position.1]);
+        }
+        let tumor_distances: Vec<Vec<f32>> = reference_cdist(
+            &tumor_positions,
+            &[vec![raw_point.0 as f32, raw_point.1 as f32]],
+        );
+
+        for dist in &tumor_distances {
+            if dist[0] < 1.5 {
+                return false;
+            }
+        }
+
+        let all_points = [
+            int_point,
+            (int_point.0 - 1, int_point.1 - 1),
+            (int_point.0, int_point.1 - 1),
+            (int_point.0 - 1, int_point.1),
+        ];
+        for point in &all_points {
+            // Make sure we can see every point
+            if let Some(vision_value) = vision_grid.get([point.1, point.0]) {
+                if *vision_value != 2 {
+                    return false;
+                }
+            }
+
+            // Make sure the points are all placeable
+            if let Some(placement_value) = placement_grid.get([point.1, point.0]) {
+                if *placement_value == 0 {
+                    return false;
+                }
+            }
+            // Make sure we have creep at every point
+            if let Some(creep_value) = creep_grid.get([point.1, point.0]) {
+                if *creep_value == 0 {
+                    return false;
+                }
+            }
+        }
+        // The necessary points are far enough from creep tumors, in vision, placeable, and
+        // have creep
+        true
     }
 
     Ok(())
