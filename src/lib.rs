@@ -705,7 +705,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         placement: PyReadonlyArray2<u8>,
         vision: PyReadonlyArray2<u8>,
         tumors: Vec<SC2Unit>,
-    ) -> Vec<(i32, i32)> {
+    ) -> (Vec<(i32, i32)>, Vec<(i32, i32)>) {
         /*
         Create a diamondish grid where each center point is `spacing` away from its neighbors.
         The intersection points for circles with radius R and centers at the origin and (R, 0)
@@ -765,7 +765,29 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        return valid_positions;
+        for base_point in &invalid_positions {
+            for neighbor in int_neighbors8(*base_point) {
+                if is_valid_spore_position(&neighbor, &tumors, &vision, &placement, &creep) {
+                    valid_positions.push(neighbor);
+                    break;
+                }
+            }
+        }
+
+        return (valid_positions, invalid_positions);
+    }
+
+    fn int_neighbors8(base_point: (i32, i32)) -> Vec<(i32, i32)> {
+        let mut neighbors: Vec<(i32, i32)> = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                if i == 1 && j == 1 {
+                    continue;
+                }
+                neighbors.push((base_point.0 + i - 1, base_point.1 + j - 1));
+            }
+        }
+        neighbors
     }
 
     fn is_valid_spore_position(
