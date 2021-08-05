@@ -698,7 +698,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyo3(name = "get_spore_forest_positions")]
     fn get_spore_forest_positions(
         _py: Python,
-        spore_crawlers: Vec<SC2Unit>,
+        rows_columns: (isize, isize),
         center_point: (f32, f32),
         spacing: f32,
         creep: PyReadonlyArray2<u8>,
@@ -720,8 +720,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         */
         let mut raw_spore_positions: Vec<(i32, i32)> = Vec::new();
 
-        let row_count = f32::powf(spore_crawlers.len() as f32, 0.5).round() as isize;
-        let column_count = f32::powf(spore_crawlers.len() as f32, 0.5).round() as isize;
+        let row_count = rows_columns.0;
+        let column_count = rows_columns.1;
 
         // We want the center spore to be close to the center point. By subtracting half of the amount
         // of rows/columns (rounded down) from the iteration variable, we can offset the values to span
