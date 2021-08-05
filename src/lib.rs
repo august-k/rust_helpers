@@ -43,8 +43,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     ) -> usize {
         let mut closest_index: usize = 0;
         let mut closest_distance: f32 = 9999.9;
-        for i in 0..units.len() {
-            let dist: f32 = get_squared_distance(units[i].position, target_position);
+        for (i, unit) in units.iter().enumerate() {
+            let dist: f32 = get_squared_distance(unit.position, target_position);
             if dist < closest_distance {
                 closest_index = i;
                 closest_distance = dist;
@@ -62,8 +62,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     ) -> usize {
         let mut closest_index: usize = 0;
         let mut closest_distance: f32 = 9999.9;
-        for i in 0..positions.len() {
-            let dist: f32 = get_squared_distance(positions[i], target_position);
+        for (i, position) in positions.iter().enumerate() {
+            let dist: f32 = get_squared_distance(*position, target_position);
             if dist < closest_distance {
                 closest_index = i;
                 closest_distance = dist;
@@ -79,10 +79,10 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // This is for calling from Python, Rust functions should use "reference_cdist"
         let mut output_array = Vec::new();
 
-        for i in 0..xa.len() {
+        for a_val in &xa {
             let mut curr_row = Vec::new();
-            for j in 0..xb.len() {
-                curr_row.push(euclidean_distance(&xa[i], &xb[j]));
+            for b_val in &xb {
+                curr_row.push(euclidean_distance(a_val, b_val));
             }
             output_array.push(curr_row);
         }
@@ -136,7 +136,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         our_center: Vec<f32>,
         enemy_center: Vec<f32>,
         offset: f32,
-        ratio: f32,
+        _ratio: f32,
     ) -> bool {
         /*
         Determine whether we have enough of our surrounding units
@@ -169,6 +169,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         This gives us the split of units and we determine surround status based on the ratio of units
         on either side.
+
+        ratio is currently unused due to the final else block, but I'm leaving it in for now
         */
 
         // start getting the angle by applying a translation that moves the enemy to the origin
@@ -207,6 +209,12 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 side_two += 1.0;
             }
         }
+        /*
+        Not sure what happened with this block, but it's currently an unnecessary check as
+        if it's false, the function returns true anyway due to the final else. Since only
+        the sides are checked, it can return the final expression and be equivalent to the
+        commented out code.
+
         if side_one == 0.0 || side_two == 0.0 {
             false
         } else if side_one / side_two <= (1.0 / ratio) && side_one / side_two <= ratio {
@@ -214,19 +222,21 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         } else {
             true
         }
+        */
+        !(side_one == 0.0 || side_two == 0.0)
     }
 
-    fn reference_cdist(xa: &Vec<Vec<f32>>, xb: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+    fn reference_cdist(xa: &[Vec<f32>], xb: &[Vec<f32>]) -> Vec<Vec<f32>> {
         // Form a matrix containing the pairwise distances between the points given
         // This is for calling internally, Python functions should use "cdist"
         // For Rust purposes, it makes more sense to have the input vectors be references
         // but I'm not sure how that works with pyo3, so there's a Python version
         let mut output_array = Vec::new();
 
-        for i in 0..xa.len() {
+        for a_val in xa {
             let mut curr_row = Vec::new();
-            for j in 0..xb.len() {
-                curr_row.push(euclidean_distance(&xa[i], &xb[j]));
+            for b_val in xb {
+                curr_row.push(euclidean_distance(a_val, b_val));
             }
             output_array.push(curr_row);
         }
@@ -237,7 +247,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         f32::powf(p1.0 - p2.0, 2.0) + f32::powf(p1.1 - p2.1, 2.0)
     }
 
-    fn euclidean_distance(p1: &Vec<f32>, p2: &Vec<f32>) -> f32 {
+    fn euclidean_distance(p1: &[f32], p2: &[f32]) -> f32 {
         get_squared_distance((p1[0], p1[1]), (p2[0], p2[1])).sqrt()
     }
 
@@ -317,69 +327,65 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 right = c;
             }
         }
+        // Not sure how the left.2 <= right.2 check works, but this is functional so I'm not changing it
         if left == NONEXISTENTCIRCLE && right == NONEXISTENTCIRCLE {
             circle
-        } else if left == NONEXISTENTCIRCLE {
-            right
-        } else if right == NONEXISTENTCIRCLE {
-            left
-        } else if left.2 <= right.2 {
+        } else if right == NONEXISTENTCIRCLE || left.2 <= right.2 {
             left
         } else {
             right
         }
     }
 
-    fn make_diameter(a: &Vec<f32>, b: &Vec<f32>) -> (f32, f32, f32) {
+    fn make_diameter(a: &[f32], b: &[f32]) -> (f32, f32, f32) {
         // Return the average of a and b and the radius of the circle centered on the average point that includes
         // both a and b
         let cx = (a[0] + b[0]) / 2.0;
         let cy = (a[1] + b[1]) / 2.0;
         let r0 = hypot(cx - a[0], cy - a[1]);
         let r1 = hypot(cx - b[0], cy - b[1]);
-        (cx, cy, get_max(&vec![r0, r1]))
+        (cx, cy, get_max(&[r0, r1]))
     }
 
-    fn make_circumcircle(a: &Vec<f32>, b: &Vec<f32>, c: &Vec<f32>) -> (f32, f32, f32) {
+    fn make_circumcircle(point_a: &[f32], point_b: &[f32], point_c: &[f32]) -> (f32, f32, f32) {
         // Mathematical algorithm from Wikipedia: Circumscribed circle
-        let x_coords: Vec<f32> = vec![a[0], b[0], c[0]];
-        let y_coords: Vec<f32> = vec![a[1], b[1], c[1]];
+        let x_coords: Vec<f32> = vec![point_a[0], point_b[0], point_c[0]];
+        let y_coords: Vec<f32> = vec![point_a[1], point_b[1], point_c[1]];
         let ox: f32 = (get_min(&x_coords) + get_max(&x_coords)) / 2.0;
         let oy: f32 = (get_min(&y_coords) + get_max(&y_coords)) / 2.0;
 
-        let ax: f32 = a[0] - ox;
-        let ay: f32 = a[1] - oy;
-        let bx: f32 = b[0] - ox;
-        let by: f32 = b[1] - oy;
-        let cx: f32 = c[0] - ox;
-        let cy: f32 = c[1] - oy;
+        let ax: f32 = point_a[0] - ox;
+        let ay: f32 = point_a[1] - oy;
+        let bx: f32 = point_b[0] - ox;
+        let by: f32 = point_b[1] - oy;
+        let cx: f32 = point_c[0] - ox;
+        let cy: f32 = point_c[1] - oy;
 
-        let d: f32 = (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) * 2.0;
-        if d == 0.0 {
+        let det: f32 = (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) * 2.0;
+        if det == 0.0 {
             return (f32::NAN, f32::NAN, f32::NAN);
         }
 
-        let x: f32 = ox
+        let x_val: f32 = ox
             + ((ax * ax + ay * ay) * (by - cy)
                 + (bx * bx + by * by) * (cy - ay)
                 + (cx * cx + cy * cy) * (ay - by))
-                / d;
-        let y: f32 = oy
+                / det;
+        let y_val: f32 = oy
             + ((ax * ax + ay * ay) * (cx - bx)
                 + (bx * bx + by * by) * (ax - cx)
                 + (cx * cx + cy * cy) * (bx - ax))
-                / d;
+                / det;
 
-        let ra: f32 = hypot(x - a[0], y - a[0]);
-        let rb: f32 = hypot(x - b[0], y - b[1]);
-        let rc: f32 = hypot(x - c[0], y - c[1]);
+        let ra: f32 = hypot(x_val - point_a[0], y_val - point_a[0]);
+        let rb: f32 = hypot(x_val - point_b[0], y_val - point_b[1]);
+        let rc: f32 = hypot(x_val - point_c[0], y_val - point_c[1]);
 
-        (x, y, get_max(&vec![ra, rb, rc]))
+        (x_val, y_val, get_max(&[ra, rb, rc]))
     }
 
-    fn is_in_circle(c: &(f32, f32, f32), p: &Vec<f32>) -> bool {
-        c != &NONEXISTENTCIRCLE
-            && hypot(p[0] - c.0, p[1] - c.1) <= c.2 * MULTIPLICATIVE_EPSILON
+    fn is_in_circle(c: &(f32, f32, f32), p: &[f32]) -> bool {
+        c != &NONEXISTENTCIRCLE && hypot(p[0] - c.0, p[1] - c.1) <= c.2 * MULTIPLICATIVE_EPSILON
     }
 
     fn cross_product(x0: &f32, y0: &f32, x1: &f32, y1: &f32, x2: &f32, y2: &f32) -> f32 {
@@ -387,7 +393,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
     }
 
-    fn get_max(vector: &Vec<f32>) -> f32 {
+    fn get_max(vector: &[f32]) -> f32 {
         // Rust doesn't have an easy way of getting the maximum value of a Vec<f32> so I'm using this.
         let mut max = vector[0];
         for val in vector.iter() {
@@ -398,7 +404,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         max
     }
 
-    fn get_min(vector: &Vec<f32>) -> f32 {
+    fn get_min(vector: &[f32]) -> f32 {
         // Rust doesn't have an easy way of getting the minimum value of a Vec<f32> so I'm using this.
         let mut min = vector[0];
         for val in vector.iter() {
@@ -421,7 +427,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         (tot_x / num_positions, tot_y / num_positions)
     }
 
-    fn get_units_center(units: &Vec<SC2Unit>) -> (f32, f32) {
+    fn get_units_center(units: &[SC2Unit]) -> (f32, f32) {
         // Given a list of units, get the mean position.
         let mut position_vector = Vec::new();
         for unit in units.iter() {
@@ -440,9 +446,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         core_unit_multiplier: f32,
         fodder_unit_multiplier: f32,
         retreat_angle: f32,
-        _caster_tags: Vec<u64>,
     ) -> HashMap<u64, (f32, f32)> {
-        // Takes our units, enemy units, our fodder units, and our casters
+        // Takes our units, enemy units, and our fodder units
         // Returns a (Python) list of tags and positions, where each position is where the unit with that tag should move
 
         // This will be the dictionary of tag to new position
@@ -513,11 +518,11 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // Mean positions will be used for determining whether units needs to be moved
         let core_mean: (f32, f32) = get_units_center(&core_units);
         let core_mean_distance: f32 =
-            euclidean_distance(&vec![core_mean.0, core_mean.1], &enemy_center_vector[0]);
+            euclidean_distance(&[core_mean.0, core_mean.1], &enemy_center_vector[0]);
 
         let fodder_mean: (f32, f32) = get_units_center(&fodder_units);
         let fodder_mean_distance: f32 =
-            euclidean_distance(&vec![fodder_mean.0, fodder_mean.1], &enemy_center_vector[0]);
+            euclidean_distance(&[fodder_mean.0, fodder_mean.1], &enemy_center_vector[0]);
 
         // Identify if a core unit is closer to the enemy than the fodder mean. If it is, back up diagonally.
         for index in 0..core_units.len() {
@@ -626,10 +631,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // Determine which core units need to move based on the mean fodder distance
         let fodder_mean: (f32, f32) = get_units_center(&fodder_units);
-        let fodder_mean_distance: f32 = euclidean_distance(
-            &vec![fodder_mean.0, fodder_mean.1],
-            &vec![target.0, target.1],
-        );
+        let fodder_mean_distance: f32 =
+            euclidean_distance(&[fodder_mean.0, fodder_mean.1], &[target.0, target.1]);
 
         // Identify if a core unit is closer to the enemy than the fodder mean. If it is, back up diagonally.
         for index in 0..core_units.len() {
