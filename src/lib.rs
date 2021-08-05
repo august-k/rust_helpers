@@ -701,9 +701,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         spore_crawlers: Vec<SC2Unit>,
         center_point: (f32, f32),
         spacing: f32,
-        creep: PyReadonlyArray2<i32>,
-        placement: PyReadonlyArray2<i32>,
-        vision: PyReadonlyArray2<i32>,
+        creep: PyReadonlyArray2<u8>,
+        placement: PyReadonlyArray2<u8>,
+        vision: PyReadonlyArray2<u8>,
         tumors: Vec<SC2Unit>,
     ) -> Vec<(i32, i32)> {
         /*
@@ -771,9 +771,9 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     fn is_valid_spore_position(
         raw_point: &(i32, i32),
         tumors: &Vec<SC2Unit>,
-        vision_grid: &PyReadonlyArray2<i32>,
-        placement_grid: &PyReadonlyArray2<i32>,
-        creep_grid: &PyReadonlyArray2<i32>,
+        vision_grid: &PyReadonlyArray2<u8>,
+        placement_grid: &PyReadonlyArray2<u8>,
+        creep_grid: &PyReadonlyArray2<u8>,
     ) -> bool {
         let int_point: (usize, usize) = (raw_point.0 as usize, raw_point.1 as usize);
         // Make sure the point is far enough away from a creep tumor, else there's no need to do the other checks
