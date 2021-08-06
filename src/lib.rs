@@ -791,14 +791,18 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         neighbors
     }
 
-    fn u_neighbors8(base_point: &(usize, usize)) -> Vec<(usize, usize)> {
+    fn u_neighbors_x(base_point: &(usize, usize), search_area: usize) -> Vec<(usize, usize)> {
         let mut neighbors: Vec<(usize, usize)> = Vec::new();
-        for i in 0..3 {
-            for j in 0..3 {
-                if i == 1 && j == 1 {
+        let iterator_max: usize = 2 * search_area + 1;
+        for i in 0..iterator_max {
+            for j in 0..iterator_max {
+                if i == search_area && j == search_area {
                     continue;
                 }
-                neighbors.push((base_point.0 + i - 1, base_point.1 + j - 1));
+                neighbors.push((
+                    base_point.0 + i - search_area,
+                    base_point.1 + j - search_area,
+                ));
             }
         }
         neighbors
@@ -914,12 +918,13 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         rounded_enemy_start: (usize, usize),
         away_from_point: (f32, f32),
         base_perimeter_points: Vec<(usize, usize)>,
+        search_area: usize,
     ) -> (usize, usize) {
         let mut valid_points: Vec<(usize, usize)> = Vec::new();
         if let Some(start_height) = terrain_map.get([rounded_enemy_start.1, rounded_enemy_start.0])
         {
             for perimeter in &base_perimeter_points {
-                'point_loop: for point in &u_neighbors8(perimeter) {
+                'point_loop: for point in &u_neighbors_x(perimeter, search_area) {
                     if let Some(point_height) = terrain_map.get([point.1, point.0]) {
                         if point_height != start_height {
                             if let Some(point_is_pathable) = pathing_map.get([point.1, point.0]) {
