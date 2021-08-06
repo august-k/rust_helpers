@@ -791,6 +791,19 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         neighbors
     }
 
+    fn u_neighbors8(base_point: &(usize, usize)) -> Vec<(usize, usize)> {
+        let mut neighbors: Vec<(usize, usize)> = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                if i == 1 && j == 1 {
+                    continue;
+                }
+                neighbors.push((base_point.0 + i - 1, base_point.1 + j - 1));
+            }
+        }
+        neighbors
+    }
+
     fn f32_neighbors24(base_point: (f32, f32)) -> Vec<(i32, i32)> {
         let mut neighbors: Vec<(i32, i32)> = Vec::new();
         let point: (i32, i32) = (base_point.0 as i32, base_point.1 as i32);
@@ -890,6 +903,48 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         return (spore.position.0 as i32, spore.position.1 as i32);
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "find_ling_drop_point")]
+    fn find_ling_drop_point(
+        _py: Python,
+        terrain_map: PyReadonlyArray2<u8>,
+        pathing_map: PyReadonlyArray2<u8>,
+        rounded_enemy_start: (usize, usize),
+        away_from_point: (f32, f32),
+        base_perimeter_points: Vec<(usize, usize)>,
+    ) -> (usize, usize) {
+        let mut valid_points: Vec<(usize, usize)> = Vec::new();
+        if let Some(start_height) = terrain_map.get([rounded_enemy_start.1, rounded_enemy_start.0])
+        {
+            for perimeter in &base_perimeter_points {
+                'point_loop: for point in &u_neighbors8(perimeter) {
+                    if let Some(point_height) = terrain_map.get([point.1, point.0]) {
+                        if point_height != start_height {
+                            if let Some(point_is_pathable) = pathing_map.get([point.1, point.0]) {
+                                if *point_is_pathable == 1 {
+                                    valid_points.push(*point);
+                                    break 'point_loop;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut dist: f32;
+        let mut max_dist: f32 = -1.0;
+        let mut best_point: (usize, usize) = (0, 0); // will definitely be set to something else
+        let away_from: &[f32] = &[away_from_point.0, away_from_point.1];
+        for point in &valid_points {
+            dist = euclidean_distance(&[point.0 as f32, point.1 as f32], away_from);
+            if dist > max_dist {
+                max_dist = dist;
+                best_point = *point;
+            }
+        }
+        best_point
     }
 
     Ok(())
