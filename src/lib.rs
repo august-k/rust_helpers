@@ -13,6 +13,7 @@ const MULTIPLICATIVE_EPSILON: f32 = 1.00000000000001;
 const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
 
 extern crate ndarray;
+use numpy::PyReadonlyArray1;
 use numpy::PyReadonlyArray2;
 
 #[pymodule]
@@ -790,6 +791,20 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         neighbors
     }
 
+    fn f32_neighbors24(base_point: (f32, f32)) -> Vec<(i32, i32)> {
+        let mut neighbors: Vec<(i32, i32)> = Vec::new();
+        let point: (i32, i32) = (base_point.0 as i32, base_point.1 as i32);
+        for i in 0..5 {
+            for j in 0..5 {
+                if i == 2 && j == 2 {
+                    continue;
+                }
+                neighbors.push((point.0 + i - 2, point.1 + j - 2));
+            }
+        }
+        neighbors
+    }
+
     fn is_valid_spore_position(
         raw_point: &(i32, i32),
         tumors: &Vec<SC2Unit>,
@@ -844,6 +859,37 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         // The necessary points are far enough from creep tumors, in vision, placeable, and
         // have creep
         true
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "get_blocked_spore_position")]
+    fn get_blocked_spore_position(
+        _py: Python,
+        spore: SC2Unit,
+        distances: PyReadonlyArray1<f64>,
+        creep: PyReadonlyArray2<u8>,
+        placement: PyReadonlyArray2<u8>,
+        vision: PyReadonlyArray2<u8>,
+        tumors: Vec<SC2Unit>,
+    ) -> (i32, i32) {
+        if let Ok(full_dist_vec) = distances.to_vec() {
+            let mut dist_vec: Vec<f32> = Vec::new();
+            for val in &full_dist_vec {
+                if *val != 0.0 {
+                    dist_vec.push(*val as f32);
+                }
+            }
+            let min_distance = get_min(&dist_vec);
+            if min_distance < 1.5 {
+                for pos in &f32_neighbors24(spore.position) {
+                    if is_valid_spore_position(pos, &tumors, &vision, &placement, &creep) {
+                        return *pos;
+                    }
+                }
+            }
+        }
+
+        return (spore.position.0 as i32, spore.position.1 as i32);
     }
 
     Ok(())
