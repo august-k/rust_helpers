@@ -705,7 +705,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         creep: PyReadonlyArray2<u8>,
         placement: PyReadonlyArray2<u8>,
         vision: PyReadonlyArray2<u8>,
-        tumors: Vec<SC2Unit>,
+        units_to_avoid: Vec<SC2Unit>,
     ) -> (Vec<(i32, i32)>, Vec<(i32, i32)>) {
         /*
         Create a diamondish grid where each center point is `spacing` away from its neighbors.
@@ -759,7 +759,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut invalid_positions: Vec<(i32, i32)> = Vec::new();
 
         for point in raw_spore_positions.iter() {
-            if is_valid_spore_position(point, &tumors, &vision, &placement, &creep) {
+            if is_valid_spore_position(point, &units_to_avoid, &vision, &placement, &creep) {
                 valid_positions.push(*point)
             } else {
                 invalid_positions.push(*point);
@@ -768,7 +768,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         for base_point in &invalid_positions {
             for neighbor in int_neighbors8(*base_point) {
-                if is_valid_spore_position(&neighbor, &tumors, &vision, &placement, &creep) {
+                if is_valid_spore_position(&neighbor, &units_to_avoid, &vision, &placement, &creep)
+                {
                     valid_positions.push(neighbor);
                     break;
                 }
@@ -808,15 +809,16 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         neighbors
     }
 
-    fn f32_neighbors24(base_point: (f32, f32)) -> Vec<(i32, i32)> {
+    fn f32_neighbors_x(base_point: (f32, f32), search_range: i32) -> Vec<(i32, i32)> {
         let mut neighbors: Vec<(i32, i32)> = Vec::new();
+        let iterator_max: i32 = 2 * search_range + 1;
         let point: (i32, i32) = (base_point.0 as i32, base_point.1 as i32);
-        for i in 0..5 {
-            for j in 0..5 {
-                if i == 2 && j == 2 {
+        for i in 0..iterator_max {
+            for j in 0..iterator_max {
+                if i == search_range && j == search_range {
                     continue;
                 }
-                neighbors.push((point.0 + i - 2, point.1 + j - 2));
+                neighbors.push((point.0 + i - search_range, point.1 + j - search_range));
             }
         }
         neighbors
@@ -824,23 +826,23 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn is_valid_spore_position(
         raw_point: &(i32, i32),
-        tumors: &Vec<SC2Unit>,
+        units_to_avoid: &Vec<SC2Unit>,
         vision_grid: &PyReadonlyArray2<u8>,
         placement_grid: &PyReadonlyArray2<u8>,
         creep_grid: &PyReadonlyArray2<u8>,
     ) -> bool {
         let int_point: (usize, usize) = (raw_point.0 as usize, raw_point.1 as usize);
-        // Make sure the point is far enough away from a creep tumor, else there's no need to do the other checks
-        let mut tumor_positions: Vec<Vec<f32>> = Vec::new();
-        for tumor in tumors.iter() {
-            tumor_positions.push(vec![tumor.position.0, tumor.position.1]);
+        // Make sure the point is far enough away from a buildings/units, else there's no need to do the other checks
+        let mut units_to_avoid_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in units_to_avoid.iter() {
+            units_to_avoid_positions.push(vec![unit.position.0, unit.position.1]);
         }
-        let tumor_distances: Vec<Vec<f32>> = reference_cdist(
-            &tumor_positions,
+        let avoid_distances: Vec<Vec<f32>> = reference_cdist(
+            &units_to_avoid_positions,
             &[vec![raw_point.0 as f32, raw_point.1 as f32]],
         );
 
-        for dist in &tumor_distances {
+        for dist in &avoid_distances {
             if dist[0] < 1.5 {
                 return false;
             }
@@ -873,7 +875,66 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 }
             }
         }
-        // The necessary points are far enough from creep tumors, in vision, placeable, and
+        // The necessary points are far enough from buildings/units, in vision, placeable, and
+        // have creep
+        true
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "is_valid_2x2_position")]
+    fn is_valid_2x2_position(
+        _py: Python,
+        raw_point: (i32, i32),
+        units_to_avoid: Vec<SC2Unit>,
+        vision_grid: PyReadonlyArray2<u8>,
+        placement_grid: PyReadonlyArray2<u8>,
+        creep_grid: PyReadonlyArray2<u8>,
+    ) -> bool {
+        let int_point: (usize, usize) = (raw_point.0 as usize, raw_point.1 as usize);
+        // Make sure the point is far enough away from a buildings/units, else there's no need to do the other checks
+        let mut units_to_avoid_positions: Vec<Vec<f32>> = Vec::new();
+        for unit in units_to_avoid.iter() {
+            units_to_avoid_positions.push(vec![unit.position.0, unit.position.1]);
+        }
+        let avoid_distances: Vec<Vec<f32>> = reference_cdist(
+            &units_to_avoid_positions,
+            &[vec![raw_point.0 as f32, raw_point.1 as f32]],
+        );
+
+        for dist in &avoid_distances {
+            if dist[0] < 1.5 {
+                return false;
+            }
+        }
+
+        let all_points = [
+            int_point,
+            (int_point.0 - 1, int_point.1 - 1),
+            (int_point.0, int_point.1 - 1),
+            (int_point.0 - 1, int_point.1),
+        ];
+        for point in &all_points {
+            // Make sure we can see every point
+            if let Some(vision_value) = vision_grid.get([point.1, point.0]) {
+                if *vision_value != 2 {
+                    return false;
+                }
+            }
+
+            // Make sure the points are all placeable
+            if let Some(placement_value) = placement_grid.get([point.1, point.0]) {
+                if *placement_value == 0 {
+                    return false;
+                }
+            }
+            // Make sure we have creep at every point
+            if let Some(creep_value) = creep_grid.get([point.1, point.0]) {
+                if *creep_value == 0 {
+                    return false;
+                }
+            }
+        }
+        // The necessary points are far enough from buildings/units, in vision, placeable, and
         // have creep
         true
     }
@@ -882,13 +943,14 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyo3(name = "get_blocked_spore_position")]
     fn get_blocked_spore_position(
         _py: Python,
-        spore: SC2Unit,
+        unit: SC2Unit,
         distances: PyReadonlyArray1<f64>,
         creep: PyReadonlyArray2<u8>,
         placement: PyReadonlyArray2<u8>,
         vision: PyReadonlyArray2<u8>,
-        tumors: Vec<SC2Unit>,
+        units_to_avoid: Vec<SC2Unit>,
     ) -> (i32, i32) {
+        let mut valid_positions: Vec<(i32, i32)> = Vec::new();
         if let Ok(full_dist_vec) = distances.to_vec() {
             let mut dist_vec: Vec<f32> = Vec::new();
             for val in &full_dist_vec {
@@ -898,15 +960,22 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
             let min_distance = get_min(&dist_vec);
             if min_distance < 1.5 {
-                for pos in &f32_neighbors24(spore.position) {
-                    if is_valid_spore_position(pos, &tumors, &vision, &placement, &creep) {
-                        return *pos;
+                for pos in &f32_neighbors_x(unit.position, 3) {
+                    if is_valid_spore_position(pos, &units_to_avoid, &vision, &placement, &creep) {
+                        valid_positions.push((pos.0 as i32, pos.1 as i32));
                     }
                 }
             }
         }
 
-        return (spore.position.0 as i32, spore.position.1 as i32);
+        if !valid_positions.is_empty() {
+            let mut shuffled = valid_positions;
+            let mut rng = thread_rng();
+            shuffled.shuffle(&mut rng);
+            return shuffled[0];
+        }
+        // Check for return value of (0, 0) as this meeans no position was found
+        return (0, 0);
     }
 
     #[pyfn(m)]
