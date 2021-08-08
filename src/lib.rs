@@ -1021,5 +1021,22 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         best_point
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "all_points_have_creep")]
+    fn all_points_have_creep(
+        _py: Python,
+        points: Vec<(usize, usize)>,
+        creep: PyReadonlyArray2<u8>,
+    ) -> bool {
+        for point in &points {
+            if let Some(creep_value) = creep.get([point.1, point.0]) {
+                if *creep_value == 0 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     Ok(())
 }
