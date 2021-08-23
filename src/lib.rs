@@ -5,12 +5,14 @@ mod sc2_unit;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::sc2_unit::SC2Unit;
 use pyo3::prelude::*;
 
 const MULTIPLICATIVE_EPSILON: f32 = 1.00000000000001;
 const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
+const TERRAIN_HEIGHT_TOLERANCE: u8 = 11;
 
 extern crate ndarray;
 use numpy::PyReadonlyArray1;
@@ -1045,6 +1047,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         start_point: (usize, usize),
         terrain_grid: PyReadonlyArray2<u8>,
         max_distance: f32,
+        choke_points: HashSet<(usize, usize)>,
     ) -> Vec<(usize, usize)> {
         let mut filled_points: Vec<(usize, usize)> = Vec::new();
         let terrain_height: u8;
@@ -1060,6 +1063,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             &mut filled_points,
             start_point,
             max_distance,
+            &choke_points,
+            true,
         );
         filled_points
     }
@@ -1071,6 +1076,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         current_vec: &mut Vec<(usize, usize)>,
         start_point: (usize, usize),
         max_distance: f32,
+        choke_points: &HashSet<(usize, usize)>,
+        initial: bool,
     ) {
         // Check that we haven't already added this point. If we've checked the point but not added it,
         // it's fast enough to check again that I'm ignoring it. May revisit in the future.
@@ -1092,8 +1099,25 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         } else {
             return;
         }
-        // Only check more points if the grid value of the point matches the target value
-        if grid_result == target_val {
+        // Only check more points if:
+        //      - the grid value of the point is within the tolerance for non-ramp height variation
+        //      - the point is not inside a choke
+        // Values have to be u8, make sure we don't overflow
+        let min_bound: u8;
+        let max_bound: u8;
+        if let Some(min_height) = target_val.checked_sub(TERRAIN_HEIGHT_TOLERANCE) {
+            min_bound = min_height;
+        } else {
+            min_bound = 0;
+        }
+        if let Some(max_height) = target_val.checked_add(TERRAIN_HEIGHT_TOLERANCE) {
+            max_bound = max_height;
+        } else {
+            max_bound = 255;
+        }
+        if (min_bound < grid_result && grid_result < max_bound)
+            && ((!choke_points.contains(&point)) || initial)
+        {
             // Add the point to the valid points and check a new set of points
             current_vec.push(point);
             grid_flood_fill(
@@ -1103,6 +1127,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 current_vec,
                 start_point,
                 max_distance,
+                choke_points,
+                false,
             );
             grid_flood_fill(
                 (point.0 - 1, point.1),
@@ -1111,6 +1137,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 current_vec,
                 start_point,
                 max_distance,
+                choke_points,
+                false,
             );
             grid_flood_fill(
                 (point.0, point.1 + 1),
@@ -1119,6 +1147,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 current_vec,
                 start_point,
                 max_distance,
+                choke_points,
+                false,
             );
             grid_flood_fill(
                 (point.0, point.1 - 1),
@@ -1127,6 +1157,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
                 current_vec,
                 start_point,
                 max_distance,
+                choke_points,
+                false,
             );
         }
     }
