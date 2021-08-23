@@ -776,7 +776,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        return (valid_positions, invalid_positions);
+        (valid_positions, invalid_positions)
     }
 
     fn int_neighbors8(base_point: (i32, i32)) -> Vec<(i32, i32)> {
@@ -826,7 +826,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn is_valid_spore_position(
         raw_point: &(i32, i32),
-        units_to_avoid: &Vec<SC2Unit>,
+        units_to_avoid: &[SC2Unit],
         vision_grid: &PyReadonlyArray2<u8>,
         placement_grid: &PyReadonlyArray2<u8>,
         creep_grid: &PyReadonlyArray2<u8>,
@@ -975,7 +975,7 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             return shuffled[0];
         }
         // Check for return value of (0, 0) as this meeans no position was found
-        return (0, 0);
+        (0, 0)
     }
 
     #[pyfn(m)]
@@ -1036,6 +1036,99 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
         true
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "terrain_flood_fill")]
+    fn terrain_flood_fill(
+        _py: Python,
+        start_point: (usize, usize),
+        terrain_grid: PyReadonlyArray2<u8>,
+        max_distance: f32,
+    ) -> Vec<(usize, usize)> {
+        let mut filled_points: Vec<(usize, usize)> = Vec::new();
+        let terrain_height: u8;
+        if let Some(terrain_value) = terrain_grid.get([start_point.1, start_point.0]) {
+            terrain_height = *terrain_value;
+        } else {
+            return filled_points;
+        }
+        grid_flood_fill(
+            start_point,
+            &terrain_grid,
+            terrain_height,
+            &mut filled_points,
+            start_point,
+            max_distance,
+        );
+        filled_points
+    }
+
+    fn grid_flood_fill(
+        point: (usize, usize),
+        grid: &PyReadonlyArray2<u8>,
+        target_val: u8,
+        current_vec: &mut Vec<(usize, usize)>,
+        start_point: (usize, usize),
+        max_distance: f32,
+    ) {
+        // Check that we haven't already added this point. If we've checked the point but not added it,
+        // it's fast enough to check again that I'm ignoring it. May revisit in the future.
+        if current_vec.contains(&point) {
+            return;
+        }
+        // Check that this point isn't too far away from the start
+        if euclidean_distance(
+            &[point.0 as f32, point.1 as f32],
+            &[start_point.0 as f32, start_point.1 as f32],
+        ) > max_distance
+        {
+            return;
+        }
+        // Only keep going if we're able to get a value for this point
+        let grid_result: u8;
+        if let Some(grid_value) = grid.get([point.1, point.0]) {
+            grid_result = *grid_value;
+        } else {
+            return;
+        }
+        // Only check more points if the grid value of the point matches the target value
+        if grid_result == target_val {
+            // Add the point to the valid points and check a new set of points
+            current_vec.push(point);
+            grid_flood_fill(
+                (point.0 + 1, point.1),
+                grid,
+                target_val,
+                current_vec,
+                start_point,
+                max_distance,
+            );
+            grid_flood_fill(
+                (point.0 - 1, point.1),
+                grid,
+                target_val,
+                current_vec,
+                start_point,
+                max_distance,
+            );
+            grid_flood_fill(
+                (point.0, point.1 + 1),
+                grid,
+                target_val,
+                current_vec,
+                start_point,
+                max_distance,
+            );
+            grid_flood_fill(
+                (point.0, point.1 - 1),
+                grid,
+                target_val,
+                current_vec,
+                start_point,
+                max_distance,
+            );
+        }
     }
 
     Ok(())
