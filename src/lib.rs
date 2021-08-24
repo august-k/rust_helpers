@@ -1046,19 +1046,30 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         _py: Python,
         start_point: (usize, usize),
         terrain_grid: PyReadonlyArray2<u8>,
+        pathing_grid: PyReadonlyArray2<u8>,
         max_distance: f32,
         choke_points: HashSet<(usize, usize)>,
     ) -> Vec<(usize, usize)> {
         let mut filled_points: Vec<(usize, usize)> = Vec::new();
         let terrain_height: u8;
+        // Only continue if we can get a height for the starting point
         if let Some(terrain_value) = terrain_grid.get([start_point.1, start_point.0]) {
             terrain_height = *terrain_value;
+        } else {
+            return filled_points;
+        }
+        // Only continue if the starting point is pathable
+        if let Some(pathing_value) = pathing_grid.get([start_point.1, start_point.0]) {
+            if pathing_value != &1 {
+                return filled_points;
+            }
         } else {
             return filled_points;
         }
         grid_flood_fill(
             start_point,
             &terrain_grid,
+            &pathing_grid,
             terrain_height,
             &mut filled_points,
             start_point,
@@ -1071,7 +1082,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
     fn grid_flood_fill(
         point: (usize, usize),
-        grid: &PyReadonlyArray2<u8>,
+        terrain_grid: &PyReadonlyArray2<u8>,
+        pathing_grid: &PyReadonlyArray2<u8>,
         target_val: u8,
         current_vec: &mut Vec<(usize, usize)>,
         start_point: (usize, usize),
@@ -1094,8 +1106,16 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         // Only keep going if we're able to get a value for this point
         let grid_result: u8;
-        if let Some(grid_value) = grid.get([point.1, point.0]) {
+        if let Some(grid_value) = terrain_grid.get([point.1, point.0]) {
             grid_result = *grid_value;
+        } else {
+            return;
+        }
+        // Only keep going if the point is pathable
+        if let Some(pathing_value) = pathing_grid.get([point.1, point.0]) {
+            if pathing_value != &1 {
+                return;
+            }
         } else {
             return;
         }
@@ -1122,7 +1142,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             current_vec.push(point);
             grid_flood_fill(
                 (point.0 + 1, point.1),
-                grid,
+                terrain_grid,
+                pathing_grid,
                 target_val,
                 current_vec,
                 start_point,
@@ -1132,7 +1153,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             );
             grid_flood_fill(
                 (point.0 - 1, point.1),
-                grid,
+                terrain_grid,
+                pathing_grid,
                 target_val,
                 current_vec,
                 start_point,
@@ -1142,7 +1164,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             );
             grid_flood_fill(
                 (point.0, point.1 + 1),
-                grid,
+                terrain_grid,
+                pathing_grid,
                 target_val,
                 current_vec,
                 start_point,
@@ -1152,7 +1175,8 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
             );
             grid_flood_fill(
                 (point.0, point.1 - 1),
-                grid,
+                terrain_grid,
+                pathing_grid,
                 target_val,
                 current_vec,
                 start_point,
