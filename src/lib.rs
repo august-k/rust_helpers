@@ -1187,5 +1187,28 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "number_of_chokes_pathed_through")]
+    fn number_of_chokes_pathed_through(
+        _py: Python,
+        path: Vec<(usize, usize)>,
+        chokes_list: Vec<HashSet<(usize, usize)>>,
+    ) -> isize {
+        // Given a path and a list of the points comprising chokes, determine how many chokes
+        // the path goes through
+        let mut num_chokes_pathed_through: isize = 0;
+        for ch in chokes_list {
+            'inner: for p in &path {
+                if ch.contains(p) {
+                    // At least one point in the path goes through this choke, no need to check more points
+                    num_chokes_pathed_through += 1;
+                    break 'inner;
+                }
+            }
+        }
+
+        num_chokes_pathed_through
+    }
+
     Ok(())
 }
