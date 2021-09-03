@@ -690,6 +690,27 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         close_positions
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "get_usize_positions_closer_than")]
+    fn get_usize_positions_closer_than(
+        _py: Python,
+        search_positions: Vec<(usize, usize)>,
+        start_position: (f32, f32),
+        distance: f32,
+    ) -> Vec<(usize, usize)> {
+        let mut close_positions: Vec<(usize, usize)> = Vec::new();
+        let squared_distance: f32 = f32::powf(distance, 2.0);
+        for pos in search_positions.iter() {
+            let usize_pos = (pos.0 as f32, pos.1 as f32);
+            let distance_to_start: f32 = get_squared_distance(usize_pos, start_position);
+            if distance_to_start <= squared_distance {
+                close_positions.push(*pos);
+            }
+        }
+
+        close_positions
+    }
+
     fn rotate_by_angle(point: (f32, f32), angle: f32) -> (f32, f32) {
         let sincos = angle.sin_cos();
         let new_x = point.0 * sincos.1 - point.1 * sincos.0;
