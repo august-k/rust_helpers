@@ -15,8 +15,8 @@ const NONEXISTENTCIRCLE: (f32, f32, f32) = (f32::NAN, f32::NAN, f32::NAN);
 const TERRAIN_HEIGHT_TOLERANCE: u8 = 11;
 
 extern crate ndarray;
-use numpy::PyReadonlyArray1;
-use numpy::PyReadonlyArray2;
+use ndarray::Array2;
+use numpy::{Ix2, PyArray, PyReadonlyArray1, PyReadonlyArray2, ToPyArray};
 
 #[pymodule]
 fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -690,6 +690,27 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         close_positions
     }
 
+    #[pyfn(m)]
+    #[pyo3(name = "get_usize_positions_closer_than")]
+    fn get_usize_positions_closer_than(
+        _py: Python,
+        search_positions: Vec<(usize, usize)>,
+        start_position: (f32, f32),
+        distance: f32,
+    ) -> Vec<(usize, usize)> {
+        let mut close_positions: Vec<(usize, usize)> = Vec::new();
+        let squared_distance: f32 = f32::powf(distance, 2.0);
+        for pos in search_positions.iter() {
+            let usize_pos = (pos.0 as f32, pos.1 as f32);
+            let distance_to_start: f32 = get_squared_distance(usize_pos, start_position);
+            if distance_to_start <= squared_distance {
+                close_positions.push(*pos);
+            }
+        }
+
+        close_positions
+    }
+
     fn rotate_by_angle(point: (f32, f32), angle: f32) -> (f32, f32) {
         let sincos = angle.sin_cos();
         let new_x = point.0 * sincos.1 - point.1 * sincos.0;
@@ -1053,13 +1074,13 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         let mut filled_points: Vec<(usize, usize)> = Vec::new();
         let terrain_height: u8;
         // Only continue if we can get a height for the starting point
-        if let Some(terrain_value) = terrain_grid.get([start_point.1, start_point.0]) {
+        if let Some(terrain_value) = terrain_grid.get([start_point.0, start_point.1]) {
             terrain_height = *terrain_value;
         } else {
             return filled_points;
         }
         // Only continue if the starting point is pathable
-        if let Some(pathing_value) = pathing_grid.get([start_point.1, start_point.0]) {
+        if let Some(pathing_value) = pathing_grid.get([start_point.0, start_point.1]) {
             if pathing_value != &1 {
                 return filled_points;
             }
@@ -1106,13 +1127,13 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
         }
         // Only keep going if we're able to get a value for this point
         let grid_result: u8;
-        if let Some(grid_value) = terrain_grid.get([point.1, point.0]) {
+        if let Some(grid_value) = terrain_grid.get([point.0, point.1]) {
             grid_result = *grid_value;
         } else {
             return;
         }
         // Only keep going if the point is pathable
-        if let Some(pathing_value) = pathing_grid.get([point.1, point.0]) {
+        if let Some(pathing_value) = pathing_grid.get([point.0, point.1]) {
             if pathing_value != &1 {
                 return;
             }
@@ -1209,6 +1230,52 @@ fn rust_helpers(_py: Python, m: &PyModule) -> PyResult<()> {
 
         num_chokes_pathed_through
     }
+
+    // #[pyfn(m)]
+    // #[pyo3(name = "create_region_for_convolution")]
+    // fn create_region_for_convolution(
+    //     _py: Python,
+    //     creep: PyReadonlyArray2<u8>,
+    //     placement: PyReadonlyArray2<u8>,
+    //     vision: PyReadonlyArray2<u8>,
+    //     points: Vec<(usize, usize)>,
+    // ) -> PyArray<usize, Ix2> {
+    //     // Only use the maximum values so it'll be easier to put them into the array
+    //     let mut x_max = 0;
+    //     let mut y_max = 0;
+    //     for p in points.iter() {
+    //         if p.0 > x_max {
+    //             x_max = p.0
+    //         }
+    //         if p.1 > y_max {
+    //             y_max = p.1
+    //         }
+    //     }
+    //     let mut conv_array = Array2::<usize>::zeros((x_max, y_max));
+    //     let gil = Python::acquire_gil();
+    //     let pyarray = PyArray::arange(gil.python(), 0, x_max * y_max, 1)
+    //         .reshape([x_max, y_max])
+    //         .unwrap();
+    //     let mut point: (usize, usize);
+    //     for p in points.iter() {
+    //         point = (p.1, p.0);
+    //         if let Some(vision_value) = vision.get(point) {
+    //             if vision_value == &2u8 {
+    //                 if let Some(creep_value) = creep.get(point) {
+    //                     if creep_value == &1u8 {
+    //                         if let Some(placement_value) = placement.get(point) {
+    //                             if placement_value != &0u8 {
+    //                                 conv_array[[p.0, p.1]] = 1;
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     pyarray
+    // }
 
     Ok(())
 }
